@@ -1,0 +1,68 @@
+function result = detectSpikes(data, opts)
+
+arguments
+    data 
+    opts.threshold = 3
+    opts.estimationFcn = @std
+    opts.stay_below_cnt = 3
+end
+
+s_est = opts.estimationFcn(data);
+spike_mask = data < -params.OP.threshold * s_est;
+% slow using movsum (~200-250ms for 82500x384 array)
+% tic
+% stay_below = movsum(spike_mask, params.OP.stay_below_cnt) == params.OP.stay_below_cnt;
+% [spike_times, spike_chans] = find(diff([zeros(1, params.NP.num_chans); stay_below]) == 1);
+% toc
+% a bit faster with movprod
+% movprod(spike_mask, params.OP.stay_below_cnt, 'EndPoints', 0);
+
+% faster using conv2 and returns padded array (~100-120ms for 82500x384 array)
+% scans rows of data_uV with a vector of ones to find locations that result in stay_below_cnt
+stay_below = conv2(spike_mask, ones(params.OP.stay_below_cnt,1)) == params.OP.stay_below_cnt;
+[spike_times, spike_chans] = find(diff(stay_below) == 1);
+
+% [~,~,bin_idx] = histcounts((spike_times-params.OP.prestim_samples)/round(params.NP.fs), params.OP.bin_edges*10^-3);
+% binned_spikes = accumarray([spike_chans, bin_idx], 1, [params.NP.num_chans, params.OP.max_bins], @sum, 0)'; 
+% firing_rate = binned_spikes / params.OP.bin_size;
+
+if nargin == 3
+    switch varargin{1}
+        case 'raster'
+            x = params.OP.time_ms(spike_times);
+            y = params.NP.chan_order(spike_chans) - 1;
+            x_coords = [x(:)'; x(:)'; nan(size(x(:)'))];
+            y_coords = [y(:)' + 0.5; y(:)' - 0.5; nan(size(y(:)'))];
+            result = {x_coords(:), y_coords(:), varargin{1}}; %, varargin{1}
+
+        case 'waveform'
+            spike_waveforms = getSpikeWaveforms(data, spike_times, spike_chans, params);
+            result = {data, spike_times, spike_chans, spike_waveforms, varargin{1}}; %, varargin{1}
+        
+        case 'firing_rate'
+            %[~,~,bin_idx] = histcounts((spike_times-params.OP.prestim_samples)/round(params.NP.fs), params.OP.bin_edges*10^-3);
+            % new method, though I may just keep the abstraction of indices
+            % and not use the times in milliseconds until plotting
+            [~,~,bin_idx] = histcounts(params.OP.time_ms(spike_time_inds)', params.OP.bin_edges);
+            binned_spikes = accumarray([spike_chans, bin_idx], 1, [params.NP.num_chans, params.OP.max_bins], @sum, 0)'; 
+            firing_rate = binned_spikes / params.OP.bin_size;
+            %firing_rate_plot = smoothdata(firing_rate, "gaussian", 10);% + (rec_params.chan_order - 1)*20;
+            %depths = repmat((params.NP.chan_order - 1)*20, [params.OP.max_bins 1]);
+            %depths(:,rec_params.chans(i)+1)
+            result = {data, spike_times, spike_chans, firing_rate, varargin{1}};
+        case 'pca'
+            [~,~,bin_idx] = histcounts((spike_times-params.OP.prestim_samples)/round(params.NP.fs), params.OP.bin_edges*10^-3);
+            binned_spikes = accumarray([spike_chans, bin_idx], 1, [params.NP.num_chans, params.OP.max_bins], @sum, 0)'; 
+            firing_rate = binned_spikes / params.OP.bin_size;
+            [coeff, score, ~, ~, explained] = pca(firing_rate);
+            result = {data, spike_times, spike_chans, firing_rate, score, varargin{1}};
+            
+        otherwise
+            result = {spike_times, spike_chans};
+    end
+
+else
+    result = {spike_times, spike_chans};
+end
+
+end
