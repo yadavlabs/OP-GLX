@@ -26,6 +26,7 @@ params.NP.chan_sy = 768; % sync channel for NP and NI streams
 params.NP.sync_samples = []; % number of samples to acquire from sync channel to align sync waves
 
 %% NI stream, channels, general parameters
+params.NI.enabled = false;
 params.NI.js = 0; % NI stream
 params.NI.ip = 0; % NI substream
 params.NI.fs = []; % sample rate (HZ) of NI stream, to be fille with GetStreamSampleRate(hSGL, params.NI.js, params.NI.ip);
@@ -36,10 +37,11 @@ params.NI.sync_samples = [];% number of samples to acquire from sync channel to 
 
 %% parameters for online processing (OP) of fetched data (window length for processing fetched data, spike detection, binning, etc)
 params.OP.stim_type = ''; % 'identifier of stimulation type for an experiment
-params.OP.prestim_len = 500e-3; % length of time before stim to fetch data (seconds)
-params.OP.stim_len = 2; % length of time stimulation is applied (seconds), for current experiment will likely leave this at 2 seconds
-params.OP.poststim_len = 250e-3; % length of time after stim to fetch data (seconds)
+params.OP.prestim_len = 0;%500e-3; % length of time before stim to fetch data (seconds)
+params.OP.stim_len = 1; % length of time stimulation is applied (seconds), for current experiment will likely leave this at 2 seconds
+params.OP.poststim_len = 0;%250e-3; % length of time after stim to fetch data (seconds)
 params.OP.window_len = params.OP.prestim_len + params.OP.stim_len + params.OP.poststim_len; %total time for fetching data (seconds)
+params.OP.fetch_fraction = 0.1; % fraction of window_len to set the period of fetchTimer
 params.OP.prestim_samples = []; % to be filled once NP.fs is initialized -> round(params.OP.prestim_len * params.NP.fs);
 params.OP.stim_samples = []; % to be filled once NP.fs is initialized -> round(params.OP.stim_len * params.NP.fs);
 params.OP.poststim_samples = []; % to be filled once NP.fs is initialized -> round(params.OP.poststim_len * params.NP.fs);
@@ -61,6 +63,7 @@ params.OP.bin_centers = [];% bin centers (mseconds), to be filled -> params.OP.b
 % spike detection
 % Trying to future proof, but using this to allow for changing estimation
 % methods for thresholding
+% Currently have median absolute deviation and standard deviation
 params.OP.estimation_methods = struct( ...
     "MAD_zero_median", @madEstimationZeroMedian, ...
     "MAD", @madEstimation, ...

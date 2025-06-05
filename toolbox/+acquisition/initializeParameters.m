@@ -15,9 +15,11 @@ else
         params.NP.sync_samples = round(params.OP.sync_len * params.NP.fs);
 
         %% set NI params
-        params.NI.fs = GetStreamSampleRate(hSGL, params.NI.js, params.NI.ip);
-        params.NI.sync_samples = round(params.OP.sync_len * params.NI.fs);
-
+        if GetParams(hSGL).niEnabled
+            params.NI.enabled = true;
+            params.NI.fs = GetStreamSampleRate(hSGL, params.NI.js, params.NI.ip);
+            params.NI.sync_samples = round(params.OP.sync_len * params.NI.fs);
+        end
         %% set OP params
         params.OP.prestim_samples = round(params.OP.prestim_len * params.NP.fs);
         params.OP.stim_samples = round(params.OP.stim_len * params.NP.fs);

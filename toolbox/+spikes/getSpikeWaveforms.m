@@ -1,4 +1,4 @@
-function spike_waveforms = getSpikeWaveforms(data, params)
+function result = getSpikeWaveforms(data, params)
 
 [spike_times, spike_chans] = spikes.detectSpikes(data, params.OP.threshold, params.OP.estimationFcn, params.OP.stay_below_cnt);
 
@@ -8,4 +8,5 @@ spike_times_pad = spike_times + params.OP.wv_samples/2 + (spike_chans-1)*(params
 spike_wv_inds = (repmat(-(params.OP.wv_samples/2-1):params.OP.wv_samples/2, length(spike_times_pad), 1) + spike_times_pad)';
 spike_waveforms = reshape(data_pad(spike_wv_inds(:)), size(spike_wv_inds));
 
+result = {data, spike_times, spike_chans, spike_waveforms, 'waveform'};
 end
