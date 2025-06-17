@@ -7,7 +7,7 @@ else
     try
     hSGL = SpikeGL(params.address);
     if ~IsRunning(hSGL)
-        msg = 'SpikeGLX not running.';
+        msg = 'SpikeGLX not acquiring data.';
     else
         %% set NP params
         params.NP.fs = GetStreamSampleRate(hSGL, params.NP.js, params.NP.ip);

@@ -8,7 +8,7 @@ arguments
 end
 
 s_est = opts.estimationFcn(data);
-spike_mask = data < -opts.threshold * s_est;
+spike_mask = data < -opts.threshold * s_est;% & data > -8 * s_est;
 % slow using movsum (~200-250ms for 82500x384 array)
 % tic
 % stay_below = movsum(spike_mask, params.OP.stay_below_cnt) == params.OP.stay_below_cnt;
