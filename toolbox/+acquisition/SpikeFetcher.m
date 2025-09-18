@@ -49,22 +49,15 @@ classdef SpikeFetcher < handle
     
     methods (Access = public)
         function obj = SpikeFetcher(hParams, thPool, plotFcn, timerDisplayUpdateFcn, displayInfoFcn, fetchErrorFcn)
-            
-            %obj.hSGL = hSGL;
+            %% constructor (will need to add input handling to allow for increased functionality outside of opglx app)
+
             obj.hParams = hParams;
             obj.thPool = thPool;
             obj.plotFcn = plotFcn;
             obj.timerDisplayUpdateFcn = timerDisplayUpdateFcn;
             obj.displayInfoFcn = displayInfoFcn;
             obj.fetchErrorFcn = fetchErrorFcn;
-            obj.setupTimer;
-            % obj.fetchTimer = timer("ExecutionMode", "fixedRate", ...
-            %     "BusyMode", "queue", ...
-            %     "Period", hParams.p.OP.window_len * hParams.p.OP.fetch_fraction, ...
-            %     "TimerFcn", @obj.fetchChunk, ...
-            %     "ErrorFcn", fetchErrorFcn);
-
-            %obj.fetchErrorFcn = fetchErrorFcn;
+            obj.setupTimer();
             obj.bufferData = [];
             obj.bufferSampleCnt = 0;
             obj.bufferRawData = [];
@@ -76,6 +69,7 @@ classdef SpikeFetcher < handle
         end
 
         function setupTimer(obj)
+            %% Timer object setup for fetching
             if ~isempty(obj.fetchTimer) && isvalid(obj.fetchTimer)
                 delete(obj.fetchTimer)
             end
@@ -85,10 +79,10 @@ classdef SpikeFetcher < handle
                 "Period", obj.hParams.p.OP.window_len * obj.hParams.p.OP.fetch_fraction, ...
                 "TimerFcn", @obj.fetchChunk, ...
                 "ErrorFcn", obj.fetchErrorFcn);
-
         end
 
         function msg = start(obj, fetchType, eventFcn)
+            %% Start fetching
             [flag, msg] = obj.ensureConnection();
             if ~flag % return if SpikeGLX connection errors
                 obj.isAcquiring = false;
@@ -130,16 +124,15 @@ classdef SpikeFetcher < handle
         end
 
         function stop(obj)
+            %% Stop fecthing
             stop(obj.fetchTimer)
             obj.isAcquiring = false;
             obj.isEvent = false;
             Close(obj.hSGL);
-
-
         end
 
         function fetchChunk(obj, ~, ~)
-            
+            %% 
             if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
                 return;
             end
@@ -147,7 +140,7 @@ classdef SpikeFetcher < handle
                 obj.stop();
                 return;
             end
-            % update timer display (may not work)
+            % update timer display (may not work) -> it does work (JS 6/18/25)
             obj.timerDisplayUpdateFcn(obj.s0 / obj.hParams.p.NP.fs);
             % fetch data
             try
@@ -247,6 +240,21 @@ classdef SpikeFetcher < handle
         end
     end
 
-
 end
+
+% 
+% classdef Buffer < handle
+%     properties
+%         data
+%         hParams
+%         writeInd
+%         sampleCnt
+% 
+%     end
+% 
+%     methods
+% 
+%     end
+% 
+% end
 

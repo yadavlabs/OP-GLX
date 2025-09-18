@@ -36,6 +36,7 @@ params.NI.stim_word = 2; % word (bit) of digital channel where electrical stimul
 params.NI.sync_samples = [];% number of samples to acquire from sync channel to align sync waves
 
 %% parameters for online processing (OP) of fetched data (window length for processing fetched data, spike detection, binning, etc)
+params.OP.drop_samples = false; % flag for enabling/disabling sample dropping specifically in the case of "Fetch Too Late" occurrences
 params.OP.stim_type = ''; % 'identifier of stimulation type for an experiment
 params.OP.prestim_len = 0;%500e-3; % length of time before stim to fetch data (seconds)
 params.OP.stim_len = 1; % length of time stimulation is applied (seconds), for current experiment will likely leave this at 2 seconds
@@ -46,8 +47,8 @@ params.OP.prestim_samples = []; % to be filled once NP.fs is initialized -> roun
 params.OP.stim_samples = []; % to be filled once NP.fs is initialized -> round(params.OP.stim_len * params.NP.fs);
 params.OP.poststim_samples = []; % to be filled once NP.fs is initialized -> round(params.OP.poststim_len * params.NP.fs);
 params.OP.window_samples = []; % total number of samples to be fetched for online analysis -> params.OP.prestim_samples + params.OP.stim_samples + params.OP.poststim_samples
-% likely should be a drastic roundoff difference (depending on the measured
-% fs, but could also just do -> round(params.OP.fetch_len * params.NP.fs)
+% likely shouldn't be a drastic roundoff difference (depending on the measured fs, but could also just do -> round(params.OP.fetch_len * params.NP.fs)
+
 params.OP.sync_len = 1.2; % length of time for collecting sync wave around stim event (seconds)
 params.OP.sync_fraction = 1/6; % fraction of sync_len to set the period of fetchTimer when fetching sync waves
 params.OP.bin_size = 50e-3; % bin size for spike binning (seconds)
@@ -64,14 +65,16 @@ params.OP.bin_centers = [];% bin centers (mseconds), to be filled -> params.OP.b
 % Trying to future proof, but using this to allow for changing estimation
 % methods for thresholding
 % Currently have median absolute deviation and standard deviation
+which('+spikes')
+%params.OP.processFcnList
 params.OP.plotType = 'rasterSpikes';
-params.OP.estimation_methods = struct( ...
-    "MAD_zero_median", @threshold.madEstimationZeroMedian, ...
+params.OP.estimationFcnList = struct( ...
+    "MAD_ZM", @threshold.madEstimationZeroMedian, ...
     "MAD", @threshold.madEstimation, ...
     "SD", @std ...
 );
-params.OP.estimation_method = "MAD_zero_median";
-params.OP.estimationFcn = params.OP.estimation_methods.(params.OP.estimation_method);
+params.OP.estimation_method = "MAD_ZM";
+params.OP.estimationFcn = params.OP.estimationFcnList.(params.OP.estimation_method);
 params.OP.threshold = 3;
 params.OP.stay_below_cnt = 3;
 
