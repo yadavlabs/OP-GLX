@@ -43,7 +43,7 @@ params.NI.sync_samples = [];% number of samples to acquire from sync channel to 
 params.NI.event_scan_samples = [];
 %% parameters for online processing (OP) of fetched data (window length for processing fetched data, spike detection, binning, etc)
 params.OP.drop_samples = false; % flag for enabling/disabling sample dropping specifically in the case of "Fetch Too Late" occurrences
-params.OP.stim_type = 'nat'; % 'identifier of stimulation type for an experiment
+params.OP.stim_type = ''; % 'identifier of stimulation type for an experiment
 params.OP.prestim_len = 0;%500e-3; % length of time before stim to fetch data (seconds)
 params.OP.stim_len = 1; % length of time stimulation is applied (seconds), for current experiment will likely leave this at 2 seconds
 params.OP.poststim_len = 0;%250e-3; % length of time after stim to fetch data (seconds)
@@ -76,7 +76,7 @@ params.OP.bin_centers = [];% bin centers (mseconds), to be filled -> params.OP.b
 % Trying to future proof, but using this to allow for changing estimation
 % methods for thresholding
 % Currently have median absolute deviation and standard deviation
-%which('+spikes')
+
 %params.OP.processFcnList
 params.OP.plotType = 'rasterSpikes';
 params.OP.estimationFcnList = struct( ...

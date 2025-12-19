@@ -8,6 +8,7 @@ classdef StimulationInterface < handle
     end
 
     events
+        Initialized
         StimulusDelivered
         StimulationError
         ConnectionChanged

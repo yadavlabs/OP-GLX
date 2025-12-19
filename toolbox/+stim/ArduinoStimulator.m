@@ -157,6 +157,7 @@ classdef ArduinoStimulator < stim.StimulationInterface
                     obj.isInitialized = true;
                     obj.StatusMessage = "Connection initialization successful.";
                     obj.updateParameters(obj.stimulationParameters)
+                    notify(obj, "Initialized")
                 
                 % case "ParameterUpdated"
                 %     obj.StatusMessage = sprintf('%s set to %s', data(2), data(3));
@@ -172,12 +173,12 @@ classdef ArduinoStimulator < stim.StimulationInterface
 
     methods (Static)
         
-        function displayStatusMessage(src, event)
+        function displayStatusMessage(displayFcn, src, event)
             d = string(datetime('now', 'Format', 'yyy-MM-dd HH:mm:ss'));
             msg = event.AffectedObject.(src.Name);
             prefix = sprintf('[ArduinoStimulator %s]', d);
             %msg = sprintf('%s %s', prefix, msg);
-            fprintf('%s %s\n', prefix, msg)
+            displayFcn(sprintf('%s %s\n', prefix, msg))
 
 
         end
