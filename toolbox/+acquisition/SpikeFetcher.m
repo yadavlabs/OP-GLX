@@ -45,6 +45,16 @@ classdef SpikeFetcher < handle
 
         dropSamples
 
+        maxScanAttempts = 50
+        scanAttempts = 0;
+        testHistory = []
+
+    end
+
+    events
+        DeliverStimulus
+        EventFetched
+        EventNotFound
     end
     
     methods (Access = public)
@@ -76,12 +86,12 @@ classdef SpikeFetcher < handle
             obj.fetchTimer = timer("Name", 'Fetch Timer', ...
                 "ExecutionMode", "fixedRate", ...
                 "BusyMode", "queue", ...
-                "Period", obj.hParams.p.OP.window_len * obj.hParams.p.OP.fetch_fraction, ...
+                "Period", obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction, ...
                 "TimerFcn", @obj.fetchChunk, ...
                 "ErrorFcn", obj.fetchErrorFcn);
         end
 
-        function msg = start(obj, fetchType, eventFcn)
+        function msg = start(obj, fetchType)%, eventFcn)
             %% Start fetching
             [flag, msg] = obj.ensureConnection();
             if ~flag % return if SpikeGLX connection errors
@@ -103,23 +113,27 @@ classdef SpikeFetcher < handle
             switch fetchType
                 case 'Continuous'
                     obj.fetchTimer.TimerFcn = @obj.fetchChunk;
-                    obj.fetchTimer.Period = obj.hParams.p.OP.window_len * obj.hParams.p.OP.fetch_fraction;
-                    obj.s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.p.NP.js, obj.hParams.p.NP.ip);
+                    obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    obj.s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
                     %disp(['here 1: ' num2str(obj.s0)])
                     start(obj.fetchTimer)
 
                 case 'Event'
                     obj.isEvent = true;
-                    obj.bufferSyncDataNI = [];
-                    obj.bufferSyncDataNP = [];
-                    obj.bufferSyncCntNI = 0;
-                    obj.bufferSyncCntNP = 0;
-                    obj.fetchTimer.TimerFcn = @(~,~) obj.fetchSyncWave;
-                    obj.fetchTimer.Perioid = obj.hParams.p.OP.sync_len * obj.hParams.p.OP.sync_fraction;
-                    obj.s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.p.NP.js, obj.hParams.p.NP.ip);
-                    obj.s0_ni = round(double(obj.s0) / obj.hParams.p.NP.fs * obj.hParams.p.NI.fs);
+                    obj.scanAttempts = 0;
+                    % obj.bufferSyncDataNI = [];
+                    % obj.bufferSyncDataNP = [];
+                    % obj.bufferSyncCntNI = 0;
+                    % obj.bufferSyncCntNP = 0;
+                    obj.fetchTimer.TimerFcn = @(~,~) obj.findEvent;%@(~,~) obj.fetchSyncWave;
+                    obj.fetchTimer.Period = obj.hParams.OP.event_scan_len;%obj.hParams.OP.sync_len * obj.hParams.OP.sync_fraction;
+                    %obj.s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+                    %obj.s0_ni = round(double(obj.s0) / obj.hParams.NP.fs * obj.hParams.NI.fs);
+                    obj.s0_ni = GetStreamSampleCount(obj.hSGL, obj.hParams.NI.js, obj.hParams.NI.ip);
                     start(obj.fetchTimer)
-                    eventFcn();
+                    notify(obj, "DeliverStimulus")
+
+                    %eventFcn();
             end   
         end
 
@@ -141,32 +155,32 @@ classdef SpikeFetcher < handle
                 return;
             end
             % update timer display (may not work) -> it does work (JS 6/18/25)
-            obj.timerDisplayUpdateFcn(obj.s0 / obj.hParams.p.NP.fs);
+            obj.timerDisplayUpdateFcn(obj.s0 / obj.hParams.NP.fs);
             % fetch data
-            try
+            try %attempt to fetch
             [data, ~] = Fetch(obj.hSGL, ...
-                obj.hParams.p.NP.js_filtered*obj.hParams.p.NP.js, ...
-                obj.hParams.p.NP.ip, ...
+                obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                obj.hParams.NP.ip, ...
                 obj.s0, ...
-                obj.hParams.p.OP.window_samples, ... 
-                obj.hParams.p.NP.chans);
-            catch ME
+                obj.hParams.OP.window_samples, ... 
+                obj.hParams.NP.chans);
+            catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
                 msg = ME.message;
                 obj.displayInfoFcn(msg);
                 if obj.dropSamples
-                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.p.NP.js, obj.hParams.p.NP.ip);
+                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
 
                     drop_samps = new_s0 - obj.s0;
                     obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
-                    zero_pad = zeros(drop_samps, obj.hParams.p.NP.num_chans);
+                    zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     obj.bufferData = [obj.bufferData; zero_pad];
                     obj.bufferSampleCnt = size(obj.bufferData, 1);
                     [data, ~] = Fetch(obj.hSGL, ...
-                        obj.hParams.p.NP.js_filtered*obj.hParams.p.NP.js, ...
-                        obj.hParams.p.NP.ip, ...
+                        obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                        obj.hParams.NP.ip, ...
                         new_s0, ...
-                        obj.hParams.p.OP.window_samples, ... 
-                        obj.hParams.p.NP.chans);
+                        obj.hParams.OP.window_samples, ... 
+                        obj.hParams.NP.chans);
                     obj.s0 = new_s0;
 
                 else
@@ -179,34 +193,91 @@ classdef SpikeFetcher < handle
             obj.s0 = obj.s0 + mi;
 
             % append to array
-            obj.bufferData = [obj.bufferData; double(data) * obj.hParams.p.NP.i16uVmult];
+            obj.bufferData = [obj.bufferData; double(data) * obj.hParams.NP.i16uVmult];
             obj.bufferSampleCnt = obj.bufferSampleCnt + mi;
 
-            if obj.bufferSampleCnt >= obj.hParams.p.OP.window_samples
+            if obj.bufferSampleCnt >= obj.hParams.OP.window_samples
                 obj.sendToWorker();
                 if obj.isEvent
+                    notify(obj, "EventFetched")
                     obj.stop();
                 end
             end
 
         end
 
-        function fetchSyncWave(obj)
+        function findEvent(obj)
             
+            [data_ni, si_ni] = Fetch(obj.hSGL, obj.hParams.NI.js, obj.hParams.NI.ip, ...
+                obj.s0_ni, obj.hParams.NI.event_scan_samples, obj.hParams.NI.event_chan);
+            [mi_ni, ~] = size(data_ni);
+
+            
+            
+            obj.s0_ni = obj.s0_ni + mi_ni;
+            
+            event_sample = acquisition.extractEventSample(data_ni, si_ni, obj.hParams);
+            obj.testHistory = [obj.testHistory;data_ni];
+            es = obj.testHistory;
+            assignin("base", "es", es)
+            if ~isempty(event_sample)
+                stop(obj.fetchTimer)
+                obj.fetchEvent(event_sample)
+            end
+            obj.scanAttempts = obj.scanAttempts + 1;
+            if obj.scanAttempts >= obj.maxScanAttempts
+                stop(obj.fetchTimer)
+                disp("event not found")
+                notify(obj, "EventNotFound")
+            end
+        end
+
+        function fetchEvent(obj, event_sample)
+
+            obj.fetchTimer.TimerFcn = @obj.fetchChunk;
+            obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+
+            mapped_sample = MapSample(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip, ...
+                event_sample, obj.hParams.NI.js, obj.hParams.NI.ip);
+
+            obj.s0 = mapped_sample - obj.hParams.OP.prestim_samples;
+            start(obj.fetchTimer)
+
 
         end
 
+
+
+        % function fetchSyncWave(obj)
+        %     % the current implementation assumes a sync wave is generated
+        %     % (by an NI board) that is routed to the SMA 1 (SY0) for IMEC
+        %     % streams and to an NI digital input
+        %     if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
+        %         return;
+        %     end
+        %     if ~IsRunning(obj.hSGL)
+        %         obj.stop();
+        %         return;
+        %     end
+        % 
+        %     [data_sy, si_sy] = 
+        % 
+        % 
+        % 
+        % 
+        % end
+
         function sendToWorker(obj)
-            obj.data_uV = obj.bufferData(1:obj.hParams.p.OP.window_samples, :);
-            if obj.bufferSampleCnt > obj.hParams.p.OP.window_samples
-                obj.bufferData = obj.bufferData(obj.hParams.p.OP.window_samples+1:end, :);
+            obj.data_uV = obj.bufferData(1:obj.hParams.OP.window_samples, :);
+            if obj.bufferSampleCnt > obj.hParams.OP.window_samples
+                obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
                 obj.bufferSampleCnt = size(obj.bufferData, 1);
             else
                 obj.bufferData = [];
                 obj.bufferSampleCnt = 0;
             end
             
-            fcn = str2func(['spikes.' obj.hParams.p.OP.plotType]);
+            fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
             obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
             afterEach(obj.Future, obj.plotFcn, 0);
@@ -229,7 +300,7 @@ classdef SpikeFetcher < handle
 
         function [flag, msg] = ensureConnection(obj)
             try
-                obj.hSGL = SpikeGL(obj.hParams.p.address);
+                obj.hSGL = SpikeGL(obj.hParams.address);
                 flag = true;
                 msg = 'ok';
                 

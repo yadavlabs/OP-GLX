@@ -15,7 +15,7 @@ classdef ParameterWrapper < handle
             if nargin > 0
                 obj.p = p; %parameter structure already generated
             else
-                obj.p = acquisition.generateParameters(); %generate a new parameter structure
+                obj.p = acquisition.generateDefaultParameters(); %generate a new parameter structure
             end
         end
         

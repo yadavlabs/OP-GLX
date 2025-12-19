@@ -19,6 +19,7 @@ else
             params.NI.enabled = true;
             params.NI.fs = GetStreamSampleRate(hSGL, params.NI.js, params.NI.ip);
             params.NI.sync_samples = round(params.OP.sync_len * params.NI.fs);
+            params.NI.event_scan_samples = round(params.OP.event_scan_len * params.NI.fs);
         end
         %% set OP params
         params.OP.prestim_samples = round(params.OP.prestim_len * params.NP.fs);

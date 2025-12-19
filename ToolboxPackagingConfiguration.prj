@@ -1,0 +1,263 @@
+<deployment-project plugin="plugin.toolbox" plugin-version="1.0">
+  <configuration file="C:\Users\SpineStimSorcerer\Github\OP-GLX\ToolboxPackagingConfiguration.prj" location="C:\Users\SpineStimSorcerer\Github\OP-GLX" name="ToolboxPackagingConfiguration" target="target.toolbox" target-name="Package Toolbox">
+    <param.appname>opglx</param.appname>
+    <param.authnamewatermark />
+    <param.email />
+    <param.company />
+    <param.summary />
+    <param.description />
+    <param.screenshot />
+    <param.version>1.0</param.version>
+    <param.output>${PROJECT_ROOT}\opglx.mltbx</param.output>
+    <param.products.name />
+    <param.products.id />
+    <param.products.version />
+    <param.platforms />
+    <param.guid>4af9b8d5-dd95-4927-85dd-6f395f2c7346</param.guid>
+    <param.exclude.filters>% List files contained in your toolbox folder that you would like to exclude
+% from packaging.  Excludes should be listed relative to the toolbox folder.
+% Some examples of how to specify excludes are provided below:
+%
+% A single file in the toolbox folder:
+% .svn
+%
+% A single file in a subfolder of the toolbox folder:
+% example/.svn
+%
+% All files in a subfolder of the toolbox folder:
+% example/*
+%
+% All files of a certain name in all subfolders of the toolbox folder:
+% **/.svn
+%
+% All files matching a pattern in all subfolders of the toolbox folder:
+% **/*.bak
+%
+resources/project/*
+.SimulinkProject/*
+_SimulinkProject/*
+resources/.Project/*
+resources/_Project/*
+**/*.prj
+**/.git
+images
+images/OPGLX Icon.png
+licenses
+licenses/spikeglx_matlab_sdk_license.txt
+toolbox/+acquisition/ParameterManager.asv
+toolbox/+acquisition/ParameterManager.m
+toolbox/+acquisition/SpikeFetcher.asv
+toolbox/apps/OnlineOptimizerApp.mlapp
+toolbox/apps/opglx_integrated_fetch.mlapp
+toolbox/external
+toolbox/external/SpikeGLX-MATLAB-SDK
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/ChkConn.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Close.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/ConsoleHide.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/ConsoleShow.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Contents.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/DoGetCells.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/DoQuery.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/DoSimpleCmd.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/EnumDataDir.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Fetch.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/FetchLatest.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetDataDir.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetGeomMap.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetImecChanGains.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetParams.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetParamsImecCommon.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetParamsImecProbe.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetParamsOnebox.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetProbeList.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetRunName.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamAcqChans.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamFileStart.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamI16ToVolts.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamMaxInt.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamNP.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamSampleCount.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamSampleRate.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamSaveChans.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamShankMap.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamSN.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetStreamVoltageRange.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetTime.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/GetVersion.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/IsConsoleHidden.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/IsInitialized.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/IsRunning.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/IsSaving.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/IsUserOrder.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/MapSample.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/NI_DO_Set.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/NI_Wave_Arm.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/NI_Wave_Load.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/NI_Wave_StartStop.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/OBX_AO_Set.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/OBX_Wave_Arm.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/OBX_Wave_Load.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/OBX_Wave_StartStop.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Opto_emit.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Opto_getAttenuations.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/Par2.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/PauseGraphs.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/ReceiveOK.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/ReceiveREADY.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetAnatomy_Pinpoint.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetAudioEnable.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetAudioParams.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetDataDir.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetMetaData.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetMultiDriveEnable.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetNextFileName.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetParams.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetParamsImecCommon.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetParamsImecProbe.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetParamsOnebox.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetRecordingEnable.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetRunName.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetTriggerOffBeep.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SetTriggerOnBeep.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/SpikeGL.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/StartRun.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/StopRun.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/TriggerGT.m
+toolbox/external/SpikeGLX-MATLAB-SDK/@SpikeGL/VerifySha1.m
+ToolboxPackagingConfiguration.prj</param.exclude.filters>
+    <param.exclude.pcodedmfiles>true</param.exclude.pcodedmfiles>
+    <param.examples />
+    <param.demosxml />
+    <param.apps />
+    <param.registered.apps />
+    <param.docs />
+    <param.getting.started.guide />
+    <param.matlabpath.excludes />
+    <param.javaclasspath.excludes />
+    <param.exported.on.package>false</param.exported.on.package>
+    <param.required.addons />
+    <param.matlab.project.id>4c3a86ce-1570-4f4a-ab38-970c9834742a</param.matlab.project.id>
+    <param.matlab.project.name>opglx</param.matlab.project.name>
+    <param.release.start />
+    <param.release.end />
+    <param.release.current.only>false</param.release.current.only>
+    <param.compatiblity.windows>true</param.compatiblity.windows>
+    <param.compatiblity.macos>true</param.compatiblity.macos>
+    <param.compatiblity.linux>true</param.compatiblity.linux>
+    <param.compatiblity.matlabonline>true</param.compatiblity.matlabonline>
+    <param.installation.map />
+    <param.additional.sw.names />
+    <param.additional.sw.licenses />
+    <param.additional.sw.win.url />
+    <param.additional.sw.mac.url />
+    <param.additional.sw.linux.url />
+    <unset>
+      <param.authnamewatermark />
+      <param.email />
+      <param.company />
+      <param.summary />
+      <param.description />
+      <param.screenshot />
+      <param.version />
+      <param.output />
+      <param.products.name />
+      <param.products.id />
+      <param.products.version />
+      <param.platforms />
+      <param.exclude.pcodedmfiles />
+      <param.examples />
+      <param.demosxml />
+      <param.apps />
+      <param.registered.apps />
+      <param.docs />
+      <param.getting.started.guide />
+      <param.matlabpath.excludes />
+      <param.javaclasspath.excludes />
+      <param.exported.on.package />
+      <param.required.addons />
+      <param.release.start />
+      <param.release.end />
+      <param.release.current.only />
+      <param.compatiblity.windows />
+      <param.compatiblity.macos />
+      <param.compatiblity.linux />
+      <param.compatiblity.matlabonline />
+      <param.installation.map />
+      <param.additional.sw.names />
+      <param.additional.sw.licenses />
+      <param.additional.sw.win.url />
+      <param.additional.sw.mac.url />
+      <param.additional.sw.linux.url />
+    </unset>
+    <fileset.rootdir>
+      <file>${PROJECT_ROOT}</file>
+    </fileset.rootdir>
+    <fileset.rootfiles>
+      <file>${PROJECT_ROOT}\.git</file>
+      <file>${PROJECT_ROOT}\.gitattributes</file>
+      <file>${PROJECT_ROOT}\.gitignore</file>
+      <file>${PROJECT_ROOT}\images</file>
+      <file>${PROJECT_ROOT}\LICENSE</file>
+      <file>${PROJECT_ROOT}\licenses</file>
+      <file>${PROJECT_ROOT}\Opglx.prj</file>
+      <file>${PROJECT_ROOT}\README.md</file>
+      <file>${PROJECT_ROOT}\release</file>
+      <file>${PROJECT_ROOT}\resources</file>
+      <file>${PROJECT_ROOT}\toolbox</file>
+      <file>${PROJECT_ROOT}\toolboxPackaging.prj</file>
+      <file>${PROJECT_ROOT}\ToolboxPackagingConfiguration.prj</file>
+    </fileset.rootfiles>
+    <fileset.depfun.included />
+    <fileset.depfun.excluded />
+    <fileset.package />
+    <build-deliverables>
+      <file location="${PROJECT_ROOT}" name="opglx.mltbx" optional="false">C:\Users\SpineStimSorcerer\Github\OP-GLX\opglx.mltbx</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>C:\Program Files\MATLAB\R2024b</root>
+      <toolboxes>
+        <toolbox name="matlabcoder" />
+        <toolbox name="embeddedcoder" />
+        <toolbox name="gpucoder" />
+        <toolbox name="neuralnetwork" />
+      </toolboxes>
+      <toolbox>
+        <matlabcoder>
+          <enabled>true</enabled>
+        </matlabcoder>
+      </toolbox>
+      <toolbox>
+        <embeddedcoder>
+          <enabled>true</enabled>
+        </embeddedcoder>
+      </toolbox>
+      <toolbox>
+        <gpucoder>
+          <enabled>true</enabled>
+        </gpucoder>
+      </toolbox>
+      <toolbox>
+        <neuralnetwork>
+          <enabled>true</enabled>
+        </neuralnetwork>
+      </toolbox>
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>10.0</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>
