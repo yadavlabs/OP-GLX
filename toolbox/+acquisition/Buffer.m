@@ -27,7 +27,7 @@ classdef Buffer < handle
         end
 
         function tf = isFull(obj)
-            tf = obj.sampleCnt >=
+            %tf = obj.sampleCnt >=
 
         end
     end

@@ -1,4 +1,4 @@
-function [spike_times, spike_chans] = detectSpikes(data, opts)
+function [spike_times, spike_chans, threshold_estimate] = detectSpikes(data, opts)
 
 arguments
     data 
@@ -7,8 +7,10 @@ arguments
     opts.stay_below_cnt = 3
 end
 
-s_est = opts.estimationFcn(data);
-spike_mask = data < -opts.threshold * s_est;% & data > -8 * s_est;
+%s_est = opts.estimationFcn(data);
+%spike_mask = data < -opts.threshold * s_est;% & data > -8 * s_est;
+threshold_estimate = -opts.threshold * opts.estimationFcn(data);
+spike_mask = data < threshold_estimate;
 % slow using movsum (~200-250ms for 82500x384 array)
 % tic
 % stay_below = movsum(spike_mask, params.OP.stay_below_cnt) == params.OP.stay_below_cnt;

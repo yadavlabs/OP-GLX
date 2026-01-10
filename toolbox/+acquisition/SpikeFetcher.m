@@ -1,30 +1,31 @@
 classdef SpikeFetcher < handle
-    %SPIKEFETCHER Summary of this class goes here
-    %   Detailed explanation goes here
+    % SPIKEFETCHER Summary of SpikeFetcher
+    %   Class for fetching incoming data from SpikeGLX stream buffers and
+    %   processing the data based on a specified time window.
     
     properties
         hSGL % SpikeGLX client object
-        s0 % sample count for acquiring data (neuropixel/imec stream)
-        s0_ni % sample count for acquiring data (NI stream, for aligning sycn waves)
+        s0_np % Sample count for acquiring neural data (neuropixel/imec stream)
+        s0_ni % Sample count for acquiring event data (NI stream, for extracting events)
         
         
-        % Each fetch call appends new filtered AP stream data to fetchData
+        % Each fetch call appends new filtered AP stream data to bufferData
         % Once bufferSampCnt >= window_samples, window_samples of data is
         % exctracted from fetchData and assigned to data_uV
-        data_uV
-        bufferData
-        bufferSampleCnt
+        bufferData % Buffer for appending fetched data
+        bufferSampleCnt % Number of samples in buffer (length of bufferData)
+        data_uV % Windowed data from bufferData to be processed (specified by hParams.OP.window_samples)
         
         % raw stream
-        dataRaw_uV
-        bufferRawData
-        bufferRawSampCnt
+        %dataRaw_uV
+        %bufferRawData
+        %bufferRawSampCnt
     
         % Sync wave data
-        bufferSyncDataNI
-        bufferSyncDataNP
-        bufferSyncCntNI
-        bufferSyncCntNP
+        %bufferSyncDataNI
+        %bufferSyncDataNP
+        %bufferSyncCntNI
+        %bufferSyncCntNP
 
         fetchTimer % timer object for fetching data
         %fetchErrorFcn % function for handling fetch errors
@@ -70,8 +71,8 @@ classdef SpikeFetcher < handle
             obj.setupTimer();
             obj.bufferData = [];
             obj.bufferSampleCnt = 0;
-            obj.bufferRawData = [];
-            obj.bufferRawSampCnt = 0;
+            %obj.bufferRawData = [];
+            %obj.bufferRawSampCnt = 0;
             obj.isAcquiring = false;
             obj.isEvent = false;
             obj.dropSamples = true;
@@ -107,14 +108,14 @@ classdef SpikeFetcher < handle
             obj.isAcquiring = true;
             obj.bufferData = [];
             obj.bufferSampleCnt = 0;
-            obj.bufferRawData = [];
-            obj.bufferRawSampCnt = 0;
+            %obj.bufferRawData = [];
+            %obj.bufferRawSampCnt = 0;
             obj.fetchType = fetchType;
             switch fetchType
                 case 'Continuous'
                     obj.fetchTimer.TimerFcn = @obj.fetchChunk;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
-                    obj.s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+                    obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
                     %disp(['here 1: ' num2str(obj.s0)])
                     start(obj.fetchTimer)
 
@@ -155,13 +156,13 @@ classdef SpikeFetcher < handle
                 return;
             end
             % update timer display (may not work) -> it does work (JS 6/18/25)
-            obj.timerDisplayUpdateFcn(obj.s0 / obj.hParams.NP.fs);
+            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
             % fetch data
             try %attempt to fetch
             [data, ~] = Fetch(obj.hSGL, ...
                 obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
                 obj.hParams.NP.ip, ...
-                obj.s0, ...
+                obj.s0_np, ...
                 obj.hParams.OP.window_samples, ... 
                 obj.hParams.NP.chans);
             catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
@@ -170,7 +171,7 @@ classdef SpikeFetcher < handle
                 if obj.dropSamples
                     new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
 
-                    drop_samps = new_s0 - obj.s0;
+                    drop_samps = new_s0 - obj.s0_np;
                     obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
                     zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     obj.bufferData = [obj.bufferData; zero_pad];
@@ -181,7 +182,7 @@ classdef SpikeFetcher < handle
                         new_s0, ...
                         obj.hParams.OP.window_samples, ... 
                         obj.hParams.NP.chans);
-                    obj.s0 = new_s0;
+                    obj.s0_np = new_s0;
 
                 else
                     obj.stop();
@@ -190,8 +191,9 @@ classdef SpikeFetcher < handle
             end
 
             [mi, ~] = size(data);
-            obj.s0 = obj.s0 + mi;
-
+            obj.s0_np = obj.s0_np + mi;
+            assignin("base", "data_raw", data)
+            assignin("base", "params", obj.hParams)
             % append to array
             obj.bufferData = [obj.bufferData; double(data) * obj.hParams.NP.i16uVmult];
             obj.bufferSampleCnt = obj.bufferSampleCnt + mi;
@@ -240,32 +242,10 @@ classdef SpikeFetcher < handle
             mapped_sample = MapSample(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip, ...
                 event_sample, obj.hParams.NI.js, obj.hParams.NI.ip);
 
-            obj.s0 = mapped_sample - obj.hParams.OP.prestim_samples;
+            obj.s0_np = mapped_sample - obj.hParams.OP.prestim_samples;
             start(obj.fetchTimer)
 
-
         end
-
-
-
-        % function fetchSyncWave(obj)
-        %     % the current implementation assumes a sync wave is generated
-        %     % (by an NI board) that is routed to the SMA 1 (SY0) for IMEC
-        %     % streams and to an NI digital input
-        %     if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
-        %         return;
-        %     end
-        %     if ~IsRunning(obj.hSGL)
-        %         obj.stop();
-        %         return;
-        %     end
-        % 
-        %     [data_sy, si_sy] = 
-        % 
-        % 
-        % 
-        % 
-        % end
 
         function sendToWorker(obj)
             obj.data_uV = obj.bufferData(1:obj.hParams.OP.window_samples, :);
@@ -312,20 +292,3 @@ classdef SpikeFetcher < handle
     end
 
 end
-
-% 
-% classdef Buffer < handle
-%     properties
-%         data
-%         hParams
-%         writeInd
-%         sampleCnt
-% 
-%     end
-% 
-%     methods
-% 
-%     end
-% 
-% end
-

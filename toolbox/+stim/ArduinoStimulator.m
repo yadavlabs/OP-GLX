@@ -1,10 +1,10 @@
 classdef ArduinoStimulator < stim.StimulationInterface
     % Arduino uses code from
     % clinical-sensory-experiments/demo/Arduino/tactile_stimulus_control
-    properties (Access = private)
+    properties %(Access = private)
         port
         baudrate = 115200
-        serObj
+        serObj internal.Serialport
         isInitialized = false
         availablePorts
         availableDeviceNames
@@ -136,7 +136,7 @@ classdef ArduinoStimulator < stim.StimulationInterface
         end
 
         function attachListener(obj)
-            addlistener(obj, "StatusMessage", "PostSet", @stim.ArduinoStimulator.displayStatusMessage);
+            addlistener(obj, "StatusMessage", "PostSet", @(src, event)stim.ArduinoStimulator.displayStatusMessage(@fprintf, src, event));
         end
         
 
