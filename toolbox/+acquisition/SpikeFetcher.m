@@ -15,7 +15,7 @@ classdef SpikeFetcher < handle
         bufferData % Buffer for appending fetched data
         bufferSampleCnt % Number of samples in buffer (length of bufferData)
         data_uV % Windowed data from bufferData to be processed (specified by hParams.OP.window_samples)
-        
+        buffer
         % raw stream
         %dataRaw_uV
         %bufferRawData
@@ -50,6 +50,9 @@ classdef SpikeFetcher < handle
         scanAttempts = 0;
         testHistory = []
 
+        t_append = [];
+        t_extract = [];
+
     end
 
     events
@@ -76,6 +79,7 @@ classdef SpikeFetcher < handle
             obj.isAcquiring = false;
             obj.isEvent = false;
             obj.dropSamples = true;
+            obj.initializeBuffer();
 
         end
 
@@ -104,10 +108,15 @@ classdef SpikeFetcher < handle
                 msg = 'SpikeGLX not acquiring data.';
                 return
             end
-
+            
+            obj.t_append = [];
+            obj.t_extract = [];
             obj.isAcquiring = true;
             obj.bufferData = [];
             obj.bufferSampleCnt = 0;
+            obj.cleanupBuffer();
+            obj.initializeBuffer();
+            
             %obj.bufferRawData = [];
             %obj.bufferRawSampCnt = 0;
             obj.fetchType = fetchType;
@@ -122,6 +131,7 @@ classdef SpikeFetcher < handle
                 case 'Event'
                     obj.isEvent = true;
                     obj.scanAttempts = 0;
+                    obj.testHistory = [];
                     % obj.bufferSyncDataNI = [];
                     % obj.bufferSyncDataNP = [];
                     % obj.bufferSyncCntNI = 0;
@@ -144,6 +154,14 @@ classdef SpikeFetcher < handle
             obj.isAcquiring = false;
             obj.isEvent = false;
             Close(obj.hSGL);
+            %assignin("base", "t_append", obj.t_append)
+            %assignin("base", "t_extract", obj.t_extract)
+            %disp(['Num Appends: ' num2str(length(obj.t_append))])
+            %disp(['Mean Append Time: ' num2str(mean(obj.t_append)*1000) 'msec'])
+            %disp(['Num Extracts: ' num2str(length(obj.t_extract))])
+            %disp(['Mean Extract Time: ' num2str(mean(obj.t_extract)*1000) 'msec'])
+            assignin("base", "data", obj.data_uV)
+            assignin("base", "params", obj.hParams)
         end
 
         function fetchChunk(obj, ~, ~)
@@ -192,11 +210,16 @@ classdef SpikeFetcher < handle
 
             [mi, ~] = size(data);
             obj.s0_np = obj.s0_np + mi;
-            assignin("base", "data_raw", data)
-            assignin("base", "params", obj.hParams)
+            %assignin("base", "data_raw", data)
+            %assignin("base", "params", obj.hParams)
             % append to array
+            %write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
+            tic
             obj.bufferData = [obj.bufferData; double(data) * obj.hParams.NP.i16uVmult];
             obj.bufferSampleCnt = obj.bufferSampleCnt + mi;
+            t = toc;
+            obj.t_append = [obj.t_append;t];
+            %disp(['Append time: ' num2str(t)])
 
             if obj.bufferSampleCnt >= obj.hParams.OP.window_samples
                 obj.sendToWorker();
@@ -219,14 +242,16 @@ classdef SpikeFetcher < handle
             obj.s0_ni = obj.s0_ni + mi_ni;
             
             event_sample = acquisition.extractEventSample(data_ni, si_ni, obj.hParams);
-            obj.testHistory = [obj.testHistory;data_ni];
-            es = obj.testHistory;
-            assignin("base", "es", es)
+            %event_sample = GetStreamSampleCount(obj.hSGL, obj.hParams.NI.js, obj.hParams.NI.ip);
+            % obj.testHistory = [obj.testHistory;data_ni];
+            % assignin("base", "th", obj.testHistory)
+            % assignin("base", "es", event_sample);
             if ~isempty(event_sample)
                 stop(obj.fetchTimer)
                 obj.fetchEvent(event_sample)
             end
             obj.scanAttempts = obj.scanAttempts + 1;
+            %disp(num2str(obj.scanAttempts))
             if obj.scanAttempts >= obj.maxScanAttempts
                 stop(obj.fetchTimer)
                 disp("event not found")
@@ -236,18 +261,19 @@ classdef SpikeFetcher < handle
 
         function fetchEvent(obj, event_sample)
 
-            obj.fetchTimer.TimerFcn = @obj.fetchChunk;
+            obj.fetchTimer.TimerFcn = @obj.fetchChunkV2;
             obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
             mapped_sample = MapSample(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip, ...
                 event_sample, obj.hParams.NI.js, obj.hParams.NI.ip);
-
             obj.s0_np = mapped_sample - obj.hParams.OP.prestim_samples;
             start(obj.fetchTimer)
 
         end
 
         function sendToWorker(obj)
+            %disp(['Before extracting: ' num2str(size(obj.bufferData,1))])
+            tic
             obj.data_uV = obj.bufferData(1:obj.hParams.OP.window_samples, :);
             if obj.bufferSampleCnt > obj.hParams.OP.window_samples
                 obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
@@ -256,7 +282,8 @@ classdef SpikeFetcher < handle
                 obj.bufferData = [];
                 obj.bufferSampleCnt = 0;
             end
-            
+            obj.t_extract = [obj.t_extract;toc];
+            %disp(['After extracting: ' num2str(size(obj.bufferData,1))])
             fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
             obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
@@ -274,6 +301,93 @@ classdef SpikeFetcher < handle
             end
             
         end
+
+        function fetchChunkV2(obj, ~, ~)
+            %% 
+            if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
+                return;
+            end
+            if ~IsRunning(obj.hSGL)
+                obj.stop();
+                return;
+            end
+            % update timer display (may not work) -> it does work (JS 6/18/25)
+            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
+            % fetch data
+            try %attempt to fetch
+            [data, ~] = Fetch(obj.hSGL, ...
+                obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                obj.hParams.NP.ip, ...
+                obj.s0_np, ...
+                obj.hParams.OP.window_samples, ... 
+                obj.hParams.NP.chans);
+            catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
+                msg = ME.message;
+                obj.displayInfoFcn(msg);
+                if obj.dropSamples
+                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+
+                    drop_samps = new_s0 - obj.s0_np;
+                    obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
+                    zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
+                    write(obj.buffer, zero_pad);
+                    %obj.bufferData = [obj.bufferData; zero_pad];
+                    %obj.bufferSampleCnt = size(obj.bufferData, 1);
+                    [data, ~] = Fetch(obj.hSGL, ...
+                        obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                        obj.hParams.NP.ip, ...
+                        new_s0, ...
+                        obj.hParams.OP.window_samples, ... 
+                        obj.hParams.NP.chans);
+                    obj.s0_np = new_s0;
+
+                else
+                    obj.stop();
+                    return;
+                end
+            end
+
+            [mi, ~] = size(data);
+            obj.s0_np = obj.s0_np + mi;
+            tic
+            write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
+            t = toc;
+            obj.t_append = [obj.t_append;t];
+            %disp(['V2 Append Time: ' num2str(t)])
+            %disp(num2str(t*1000))
+            if obj.buffer.NumUnreadSamples >= obj.hParams.OP.window_samples
+                obj.sendToWorkerV2();
+                if obj.isEvent
+                    notify(obj, "EventFetched")
+                    obj.stop();
+                end
+            end
+
+        end
+
+        function sendToWorkerV2(obj)
+            %disp(['Before reading:' num2str(obj.buffer.NumUnreadSamples)])
+            tic
+            obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);%obj.bufferData(1:obj.hParams.OP.window_samples, :);
+            obj.t_extract = [obj.t_extract;toc];
+            info(obj.buffer)
+            %disp(['After reading :' num2str(obj.buffer.NumUnreadSamples)])
+            % if obj.bufferSampleCnt > obj.hParams.OP.window_samples
+            %     obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
+            %     obj.bufferSampleCnt = size(obj.bufferData, 1);
+            % else
+            %     obj.bufferData = [];
+            %     obj.bufferSampleCnt = 0;
+            % end
+            
+            fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
+            params = obj.hParams.toStruct();
+            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
+            afterEach(obj.Future, obj.plotFcn, 0);
+
+        end
+
+
     end
     
     methods (Access = private)
@@ -288,6 +402,18 @@ classdef SpikeFetcher < handle
                 flag = false;
                 msg = ME.message;
             end
+        end
+
+        function initializeBuffer(obj)
+            obj.buffer = dsp.AsyncBuffer(obj.hParams.OP.window_samples*2);
+            write(obj.buffer, ...
+                zeros(obj.hParams.OP.window_samples * obj.hParams.OP.fetch_fraction,obj.hParams.NP.num_chans));
+            read(obj.buffer, obj.buffer.NumUnreadSamples);
+        end
+
+        function cleanupBuffer(obj)
+            reset(obj.buffer)
+            release(obj.buffer)
         end
     end
 

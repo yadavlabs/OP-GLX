@@ -64,7 +64,7 @@ params.OP.event_scan_len = 0.1; % length of time for scanning NI stream to find 
 
 params.OP.bin_size = 50e-3; % bin size for spike binning (seconds)
 params.OP.bin_samples = []; % number of samples in a bin, to be filled once NP.fs is initialize -> round(params.OP.bin_size * params.NP.fs)
-params.OP.max_bins = []; % maximum number of bins within OP.fetch_len, to be filled -> params.OP.fetch_samples / params.OP.bin_samples
+params.OP.max_bins = NaN; % maximum number of bins within OP.fetch_len, to be filled -> params.OP.fetch_samples / params.OP.bin_samples
 
 % time vectors, binned time vectors
 % These may need some work

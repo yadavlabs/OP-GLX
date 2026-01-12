@@ -49,6 +49,58 @@ classdef ParameterManager < dynamicprops
             [~, msg] = acquisition.initializeParameters(obj);
         end
 
+        function updateWindowLength(obj, value)
+            
+            obj.OP.window_len = value;
+            obj.OP.prestim_len = 0;
+            obj.OP.stim_len = value;
+            obj.OP.postim_samples = 0;
+
+            if obj.initialized
+                obj.OP.window_samples = round(value * obj.NP.fs);
+                obj.OP.prestim_samples = 0;
+                obj.OP.stim_samples = obj.OP.window_samples;
+                obj.OP.poststim_samples = 0;
+                updateTimeArrays(obj);
+            end
+            
+                
+            
+            
+        end
+        
+        function updateEventLength(obj, name, value)
+            
+            obj.OP.([name '_len']) = value;
+            obj.OP.window_len = obj.OP.prestim_len + obj.OP.stim_len + obj.OP.poststim_len;
+            if obj.initialized
+                obj.OP.([name '_samples']) = round(value * obj.NP.fs);
+                obj.OP.window_samples = obj.OP.prestim_samples + obj.OP.stim_samples + obj.OP.poststim_samples;
+                updateTimeArrays(obj);
+            end
+
+        end
+
+        function updateBinSize(obj, value)
+            obj.OP.bin_size = value;
+            if obj.initialized
+                obj.OP.bin_samples = round(obj.OP.bin_size * obj.NP.fs);
+            end
+            updateTimeArrays(obj);
+
+        end
+
+        function updateTimeArrays(obj)
+            if ~obj.initialized
+                return
+            end
+            obj.OP.max_bins = obj.OP.window_samples / obj.OP.bin_samples;
+            obj.OP.time_ms = ((0:obj.OP.window_samples-1) - obj.OP.prestim_samples) / round(obj.NP.fs) * 1000;
+            obj.OP.bin_edges = obj.OP.time_ms(1):obj.OP.bin_size*10^3:(obj.OP.time_ms(end)+10^3/round(obj.NP.fs));
+            obj.OP.bin_centers = obj.OP.bin_edges(2:end) - obj.OP.bin_size*10^3/2;
+
+
+        end
         % function val = getField(obj, field)
         %     val = obj.p.(field);
         % end
