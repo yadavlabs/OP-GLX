@@ -53,12 +53,20 @@ classdef SpikeFetcher < handle
         t_append = [];
         t_extract = [];
 
+        sampleHistory = [];
+        bufferFilledHistory = [];
+        maxTestCnts = 100;
+        testCnt = 0;
+        
+
+
     end
 
     events
         DeliverStimulus
         EventFetched
         EventNotFound
+        FetchStopped
     end
     
     methods (Access = public)
@@ -80,6 +88,8 @@ classdef SpikeFetcher < handle
             obj.isEvent = false;
             obj.dropSamples = true;
             obj.initializeBuffer();
+
+            
 
         end
 
@@ -117,13 +127,17 @@ classdef SpikeFetcher < handle
             obj.cleanupBuffer();
             obj.initializeBuffer();
             
-            %obj.bufferRawData = [];
-            %obj.bufferRawSampCnt = 0;
+            obj.testCnt = 0;
+            obj.sampleHistory = zeros(obj.maxTestCnts,1);
+            obj.bufferFilledHistory = false(obj.maxTestCnts, 1);
+
             obj.fetchType = fetchType;
             switch fetchType
                 case 'Continuous'
-                    obj.fetchTimer.TimerFcn = @obj.fetchChunk;
+                    obj.fetchTimer.TimerFcn = @obj.fetchChunkV2;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+
                     obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
                     %disp(['here 1: ' num2str(obj.s0)])
                     start(obj.fetchTimer)
@@ -160,8 +174,16 @@ classdef SpikeFetcher < handle
             %disp(['Mean Append Time: ' num2str(mean(obj.t_append)*1000) 'msec'])
             %disp(['Num Extracts: ' num2str(length(obj.t_extract))])
             %disp(['Mean Extract Time: ' num2str(mean(obj.t_extract)*1000) 'msec'])
-            assignin("base", "data", obj.data_uV)
-            assignin("base", "params", obj.hParams)
+            %assignin("base", "data", obj.data_uV)
+            % actualPeriodSec = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+            % actualPeriodSamps = actualPeriodSec * obj.hParams.NP.fs;
+            % assignin("base", "params", obj.hParams)
+            % assignin("base", "sampleHistory", obj.sampleHistory)
+            % assignin("base", "bufferFilled", obj.bufferFilledHistory)
+            % assignin("base", "actualPeriodSec", actualPeriodSec)
+            % assignin("base", "actualPeriodSamps", actualPeriodSamps)
+            %assignin("base", "sf", obj)
+            
         end
 
         function fetchChunk(obj, ~, ~)
@@ -349,28 +371,41 @@ classdef SpikeFetcher < handle
 
             [mi, ~] = size(data);
             obj.s0_np = obj.s0_np + mi;
-            tic
+
+            
+
+            %tic
             write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
-            t = toc;
-            obj.t_append = [obj.t_append;t];
+            %t = toc;
+            %obj.t_append = [obj.t_append;t];
             %disp(['V2 Append Time: ' num2str(t)])
             %disp(num2str(t*1000))
+            obj.testCnt = obj.testCnt + 1;
+            if obj.testCnt > obj.maxTestCnts
+                notify(obj, "FetchStopped")
+                return;
+                %obj.stop()
+            end
+            obj.sampleHistory(obj.testCnt) = mi;
+
             if obj.buffer.NumUnreadSamples >= obj.hParams.OP.window_samples
+                obj.bufferFilledHistory(obj.testCnt) = true;
                 obj.sendToWorkerV2();
                 if obj.isEvent
                     notify(obj, "EventFetched")
                     obj.stop();
                 end
             end
+            
 
         end
 
         function sendToWorkerV2(obj)
             %disp(['Before reading:' num2str(obj.buffer.NumUnreadSamples)])
-            tic
+            %tic
             obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);%obj.bufferData(1:obj.hParams.OP.window_samples, :);
             obj.t_extract = [obj.t_extract;toc];
-            info(obj.buffer)
+            %info(obj.buffer)
             %disp(['After reading :' num2str(obj.buffer.NumUnreadSamples)])
             % if obj.bufferSampleCnt > obj.hParams.OP.window_samples
             %     obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
@@ -385,6 +420,29 @@ classdef SpikeFetcher < handle
             obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
             afterEach(obj.Future, obj.plotFcn, 0);
 
+        end
+
+        function plotJitter(obj)
+
+            actualPeriodSec = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+            actualPeriodSamps = actualPeriodSec * obj.hParams.NP.fs;
+            x = 1:obj.maxTestCnts;
+            figure;
+            plot(x, obj.sampleHistory)
+            hold on
+            yline(actualPeriodSamps, "LineStyle", "--")
+            plot(x(obj.bufferFilledHistory), obj.sampleHistory(obj.bufferFilledHistory), "ro")
+
+
+
+        end
+
+        function plotJitterDist(obj)
+
+            figure;
+            %plot(obj.sampleHistory(obj.bufferFilledHistory))
+            x = 1:obj.maxTestCnts;
+            %jitter(1:)
         end
 
 
