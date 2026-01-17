@@ -48,7 +48,7 @@ classdef SpikeFetcher < handle
 
         maxScanAttempts = 50
         scanAttempts = 0;
-        testHistory = []
+
 
         t_append = [];
         t_extract = [];
@@ -57,6 +57,16 @@ classdef SpikeFetcher < handle
         bufferFilledHistory = [];
         maxTestCnts = 100;
         testCnt = 0;
+        
+        
+        runBlock = 1;
+        metricsLog
+        fetchCnt = 0;
+        fMetrics
+        tlMetrics
+        hCoverage
+
+        
         
 
 
@@ -88,6 +98,7 @@ classdef SpikeFetcher < handle
             obj.isEvent = false;
             obj.dropSamples = true;
             obj.initializeBuffer();
+            obj.setupMetrics();
 
             
 
@@ -145,7 +156,6 @@ classdef SpikeFetcher < handle
                 case 'Event'
                     obj.isEvent = true;
                     obj.scanAttempts = 0;
-                    obj.testHistory = [];
                     % obj.bufferSyncDataNI = [];
                     % obj.bufferSyncDataNP = [];
                     % obj.bufferSyncCntNI = 0;
@@ -168,6 +178,12 @@ classdef SpikeFetcher < handle
             obj.isAcquiring = false;
             obj.isEvent = false;
             Close(obj.hSGL);
+
+            locs = cellfun(@(c) isempty(c), {obj.metricsLog.fetch_fraction});
+            [obj.metricsLog(locs).fetch_fraction] = deal(obj.hParams.OP.fetch_fraction);
+            [obj.metricsLog(locs).window_length] = deal(obj.hParams.OP.window_len);
+            [obj.metricsLog(locs).run_block] = deal(obj.runBlock);
+            obj.runBlock = obj.runBlock + 1;
             %assignin("base", "t_append", obj.t_append)
             %assignin("base", "t_extract", obj.t_extract)
             %disp(['Num Appends: ' num2str(length(obj.t_append))])
@@ -236,10 +252,10 @@ classdef SpikeFetcher < handle
             %assignin("base", "params", obj.hParams)
             % append to array
             %write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
-            tic
+            %tic
             obj.bufferData = [obj.bufferData; double(data) * obj.hParams.NP.i16uVmult];
             obj.bufferSampleCnt = obj.bufferSampleCnt + mi;
-            t = toc;
+            %t = toc;
             obj.t_append = [obj.t_append;t];
             %disp(['Append time: ' num2str(t)])
 
@@ -295,7 +311,7 @@ classdef SpikeFetcher < handle
 
         function sendToWorker(obj)
             %disp(['Before extracting: ' num2str(size(obj.bufferData,1))])
-            tic
+            %tic
             obj.data_uV = obj.bufferData(1:obj.hParams.OP.window_samples, :);
             if obj.bufferSampleCnt > obj.hParams.OP.window_samples
                 obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
@@ -304,7 +320,7 @@ classdef SpikeFetcher < handle
                 obj.bufferData = [];
                 obj.bufferSampleCnt = 0;
             end
-            obj.t_extract = [obj.t_extract;toc];
+            %obj.t_extract = [obj.t_extract;toc];
             %disp(['After extracting: ' num2str(size(obj.bufferData,1))])
             fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
@@ -325,7 +341,12 @@ classdef SpikeFetcher < handle
         end
 
         function fetchChunkV2(obj, ~, ~)
-            %% 
+            %%
+            
+            obj.fetchCnt = obj.fetchCnt + 1;
+            %obj.metricsLog(obj.fetchCnt).cpu_timestamp = cputime - obj.tStart;
+            obj.metricsLog(obj.fetchCnt).timer_timestamp = datetime('now');%tic;%toc;%tic;
+
             if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
                 return;
             end
@@ -333,6 +354,12 @@ classdef SpikeFetcher < handle
                 obj.stop();
                 return;
             end
+            
+
+            obj.metricsLog(obj.fetchCnt).current_head = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+            obj.metricsLog(obj.fetchCnt).buffer_margin = obj.metricsLog(obj.fetchCnt).current_head - obj.s0_np;
+            obj.metricsLog(obj.fetchCnt).s0_requested = obj.s0_np;
+            obj.metricsLog(obj.fetchCnt).requested_samples = obj.hParams.OP.window_samples;
             % update timer display (may not work) -> it does work (JS 6/18/25)
             obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
             % fetch data
@@ -371,6 +398,8 @@ classdef SpikeFetcher < handle
 
             [mi, ~] = size(data);
             obj.s0_np = obj.s0_np + mi;
+            obj.metricsLog(obj.fetchCnt).returned_samples = mi;
+            obj.metricsLog(obj.fetchCnt).s0_updated = obj.s0_np;
 
             
 
@@ -404,7 +433,7 @@ classdef SpikeFetcher < handle
             %disp(['Before reading:' num2str(obj.buffer.NumUnreadSamples)])
             %tic
             obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);%obj.bufferData(1:obj.hParams.OP.window_samples, :);
-            obj.t_extract = [obj.t_extract;toc];
+            %obj.t_extract = [obj.t_extract;toc];
             %info(obj.buffer)
             %disp(['After reading :' num2str(obj.buffer.NumUnreadSamples)])
             % if obj.bufferSampleCnt > obj.hParams.OP.window_samples
@@ -445,6 +474,74 @@ classdef SpikeFetcher < handle
             %jitter(1:)
         end
 
+        function computeMetrics(obj)
+   
+            % coverage = [obj.metricsLog.returned_samples] ./ [obj.metricsLog.requested_samples];
+            % plot(coverage)
+            
+            
+            actual_period = diff([obj.metricsLog.timer_timestamp]);
+
+    
+
+            
+
+
+        end
+
+        function computeJitter(obj)
+            
+            actual_period = cell(obj.runBlock-1, 1);
+            window_lengths = zeros(obj.runBlock-1, 1);
+            fetch_fractions = zeros(obj.runBlock-1,1);
+            for i = 1:(obj.runBlock - 1)
+                locs = [obj.metricsLog.run_block] == i;
+                actual_period{i} = seconds(diff([obj.metricsLog(locs).timer_timestamp]));
+                window_lengths(i) = obj.metricsLog(locs).window_length;
+                fetch_fractions(i) = obj.metricsLog(locs).fetch_fraction;
+
+            end
+            
+            unique_windows = unique(window_lengths);
+            for i = 1:length(unique_windows)
+                figure('Name', ['Window Length == ' num2str(unique_windows(i))]);
+                title(['Window Length == ' num2str(unique_windows(i))])
+                locs = find(window_lengths==unique_windows(i));
+
+                for c = 1:length(locs)
+                    requested_period = fetch_fractions(locs(c)) * unique_windows(i);
+                    plot(actual_period{locs(c)}-requested_period, 'Tag', num2str(fetch_fractions(locs(c))))
+                    hold on
+
+                end
+                legend;
+            end
+
+            % jitter = actual_period - obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+            % figure;
+            % plot(jitter)
+            % hold on;
+            % yline(mean(jitter))
+
+            % figure
+            % plot(actual_period)
+            % hold on
+            % yline(obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction)
+
+        end
+
+        function computeContinuity(obj)
+           expected_s0 = [obj.metricsLog(1:end-1).s0_requested] + [obj.metricsLog(1:end-1).returned_samples];
+           actual_s0 = [obj.metricsLog(2:end).s0_requested];
+           gap = actual_s0 > expected_s0;
+           overlap = actual_s0 < expected_s0; 
+            % figure
+            % plot(1:length(expected_s0), expected_s0)
+            % hold on
+            % plot(1:length(actual_s0), actual_s0, '--')
+            % legend('Expected Request', 'Actual Request');
+        end
+
 
     end
     
@@ -473,6 +570,21 @@ classdef SpikeFetcher < handle
             reset(obj.buffer)
             release(obj.buffer)
         end
+
+        
+        function setupMetrics(obj)
+            obj.metricsLog = struct("run_block", [], "s0_requested", [], "requested_samples", [], ...
+                "returned_samples", [], "s0_updated", [], "current_head", [], ...
+                "buffer_margin", [], "timer_timestamp", [], "fetch_fraction", [], ...
+                "window_length", []);
+            %obj.fMetrics = figure('Name', 'SpikeFetcher Metrics');
+            %obj.tlMetrics = tiledlayout('flow');
+            %nexttile;
+            %obj.hCoverage = plot(0,0, 'k');
+
+
+        end
+        
     end
 
 end
