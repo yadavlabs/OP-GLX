@@ -23,6 +23,10 @@ classdef ParameterManager < dynamicprops
         paramPath
         paramFields
     end
+
+    events
+        WindowLengthUpdated
+    end
     methods
         function obj = ParameterManager(opts)
             % Constructor
@@ -62,7 +66,9 @@ classdef ParameterManager < dynamicprops
                 obj.OP.stim_samples = obj.OP.window_samples;
                 obj.OP.poststim_samples = 0;
                 updateTimeArrays(obj);
+                notify(obj, "WindowLengthUpdated");
             end
+            
             
                 
             
@@ -98,6 +104,7 @@ classdef ParameterManager < dynamicprops
             obj.OP.time_ms = ((0:obj.OP.window_samples-1) - obj.OP.prestim_samples) / round(obj.NP.fs) * 1000;
             obj.OP.bin_edges = obj.OP.time_ms(1):obj.OP.bin_size*10^3:(obj.OP.time_ms(end)+10^3/round(obj.NP.fs));
             obj.OP.bin_centers = obj.OP.bin_edges(2:end) - obj.OP.bin_size*10^3/2;
+            
 
 
         end

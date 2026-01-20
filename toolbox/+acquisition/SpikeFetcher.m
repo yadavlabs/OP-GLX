@@ -55,19 +55,22 @@ classdef SpikeFetcher < handle
 
         sampleHistory = [];
         bufferFilledHistory = [];
+
+
         maxTestCnts = 100;
         testCnt = 0;
         
         
+        testParams
         runBlock = 1;
         metricsLog
-        fetchCnt = 0;
+        fetchCnt = 1;
         fMetrics
         tlMetrics
         hCoverage
 
         
-        
+        timeDisplayTimer
 
 
     end
@@ -80,20 +83,55 @@ classdef SpikeFetcher < handle
     end
     
     methods (Access = public)
-        function obj = SpikeFetcher(hParams, thPool, plotFcn, timerDisplayUpdateFcn, displayInfoFcn, fetchErrorFcn)
+        
+        function obj = SpikeFetcher(opts)
+        %function obj = SpikeFetcher(hParams, thPool, plotFcn, timerDisplayUpdateFcn, displayInfoFcn, fetchErrorFcn)
             %% constructor (will need to add input handling to allow for increased functionality outside of opglx app)
+            % params = acquisition.ParameterManager;
+            % msg = initialize(params);
+            % fetcher = acquisition.SpikeFetcher("parameters", params, 
+            arguments
+                opts.parameters = acquisition.ParameterManager()%acquisition.ParameterManager
+                opts.threadPool
+                opts.plotFcn
+                opts.timerDisplayFcn
+                opts.displayInfoFcn = @(x)disp(x)
+                opts.fetchErrorFcn
 
-            obj.hParams = hParams;
-            obj.thPool = thPool;
-            obj.plotFcn = plotFcn;
-            obj.timerDisplayUpdateFcn = timerDisplayUpdateFcn;
-            obj.displayInfoFcn = displayInfoFcn;
-            obj.fetchErrorFcn = fetchErrorFcn;
+            end
+            obj.hParams = opts.parameters;
+            if ~isfield(opts, "threadPool")
+                if isempty(gcp("nocreate"))
+                    obj.thPool = parpool("Threads");
+                else
+                    obj.thPool = gcp("nocreate");
+                end
+            end
+            
+            if ~isfield(opts, "plotFcn")
+                plotStructs = plotting.generateStandalonePlots(obj.hParams);
+                obj.plotFcn = @(result)plotting.plotResult(plotStructs, result);
+            end
+
+            if ~isfield(opts, "timerDisplayFcn")
+
+                obj.timerDisplayUpdateFcn = plotting.generateAcquisitionTimeDisplay;
+            end
+            
+            if ~isfield(opts, "fetchErrorFcn")
+                obj.fetchErrorFcn = @obj.handleFetchTimerError;
+            end
+            
+
+            %obj.hParams = hParams;
+            %obj.thPool = thPool;
+            %obj.plotFcn = plotFcn;
+            %obj.timerDisplayUpdateFcn = timerDisplayUpdateFcn;
+            obj.displayInfoFcn = opts.displayInfoFcn;
+            %obj.fetchErrorFcn = fetchErrorFcn;
             obj.setupTimer();
-            obj.bufferData = [];
-            obj.bufferSampleCnt = 0;
-            %obj.bufferRawData = [];
-            %obj.bufferRawSampCnt = 0;
+            %obj.bufferData = [];
+            %obj.bufferSampleCnt = 0;
             obj.isAcquiring = false;
             obj.isEvent = false;
             obj.dropSamples = true;
@@ -115,9 +153,19 @@ classdef SpikeFetcher < handle
                 "Period", obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction, ...
                 "TimerFcn", @obj.fetchChunk, ...
                 "ErrorFcn", obj.fetchErrorFcn);
+
+            % obj.timeDisplayTimer = timer("Name", 'Time Display Timer', ...
+            %     "ExecutionMode", "fixedRate", "BusyMode", "drop", ...
+            %     "Period", obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction, ...
+            %     "TimerFcn", )
+            % obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
         end
 
         function msg = start(obj, fetchType)%, eventFcn)
+            arguments
+                obj acquisition.SpikeFetcher
+                fetchType (1,:) char {mustBeMember(fetchType, {'Continuous', 'Event', 'TestPerformance'})} = 'Continuous'
+            end
             %% Start fetching
             [flag, msg] = obj.ensureConnection();
             if ~flag % return if SpikeGLX connection errors
@@ -133,8 +181,8 @@ classdef SpikeFetcher < handle
             obj.t_append = [];
             obj.t_extract = [];
             obj.isAcquiring = true;
-            obj.bufferData = [];
-            obj.bufferSampleCnt = 0;
+            %obj.bufferData = [];
+            %obj.bufferSampleCnt = 0;
             obj.cleanupBuffer();
             obj.initializeBuffer();
             
@@ -145,12 +193,11 @@ classdef SpikeFetcher < handle
             obj.fetchType = fetchType;
             switch fetchType
                 case 'Continuous'
-                    obj.fetchTimer.TimerFcn = @obj.fetchChunkV2;
+                    obj.fetchTimer.TimerFcn = @obj.fetchChunk;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
-                    obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
                     obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
-                    %disp(['here 1: ' num2str(obj.s0)])
                     start(obj.fetchTimer)
 
                 case 'Event'
@@ -168,7 +215,33 @@ classdef SpikeFetcher < handle
                     start(obj.fetchTimer)
                     notify(obj, "DeliverStimulus")
 
-                    %eventFcn();
+                case 'TestPerformance'
+                    obj.setupMetrics();
+                    % wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
+                    % ff = obj.testParams.fetch_fractions(obj.testParams.ff_cnt);
+                    % obj.hParams.OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
+                    % obj.hParams.OP.fetch_fraction = ff;%obj.testParams.fetch_fractions(ff_cnt);
+                    % 
+                    % %obj.testCnt = 0;
+                    % obj.maxTestCnts = obj.testParams.test_length / (wl * ff);
+
+                    obj.fetchTimer.TimerFcn = @obj.fetchChunkWithMetrics;
+                    obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    wl = obj.hParams.OP.window_len;
+                    ff =obj.hParams.OP.fetch_fraction;
+                    %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+
+                    obj.displayInfoFcn(repelem('=', 40))
+                    obj.displayInfoFcn(repelem('=', 40))
+                    obj.displayInfoFcn(['Starting performance testing. ', num2str(obj.testParams.test_length) 'sec evaluation.'])
+                    obj.displayInfoFcn(repelem('-', 40))
+                    obj.displayInfoFcn(['Run ' num2str(obj.runBlock)])
+                    obj.displayInfoFcn(['Window Length: ' num2str(wl) 'sec'])
+                    obj.displayInfoFcn(['Fetch Fraction: ' num2str(ff)])
+                    obj.displayInfoFcn(['Fetch Length: ' num2str(wl*ff) 'sec'])
+                    obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+                    start(obj.fetchTimer)
+
             end   
         end
 
@@ -179,11 +252,7 @@ classdef SpikeFetcher < handle
             obj.isEvent = false;
             Close(obj.hSGL);
 
-            locs = cellfun(@(c) isempty(c), {obj.metricsLog.fetch_fraction});
-            [obj.metricsLog(locs).fetch_fraction] = deal(obj.hParams.OP.fetch_fraction);
-            [obj.metricsLog(locs).window_length] = deal(obj.hParams.OP.window_len);
-            [obj.metricsLog(locs).run_block] = deal(obj.runBlock);
-            obj.runBlock = obj.runBlock + 1;
+            
             %assignin("base", "t_append", obj.t_append)
             %assignin("base", "t_extract", obj.t_extract)
             %disp(['Num Appends: ' num2str(length(obj.t_append))])
@@ -202,75 +271,8 @@ classdef SpikeFetcher < handle
             
         end
 
-        function fetchChunk(obj, ~, ~)
-            %% 
-            if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
-                return;
-            end
-            if ~IsRunning(obj.hSGL)
-                obj.stop();
-                return;
-            end
-            % update timer display (may not work) -> it does work (JS 6/18/25)
-            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
-            % fetch data
-            try %attempt to fetch
-            [data, ~] = Fetch(obj.hSGL, ...
-                obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
-                obj.hParams.NP.ip, ...
-                obj.s0_np, ...
-                obj.hParams.OP.window_samples, ... 
-                obj.hParams.NP.chans);
-            catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
-                msg = ME.message;
-                obj.displayInfoFcn(msg);
-                if obj.dropSamples
-                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
-
-                    drop_samps = new_s0 - obj.s0_np;
-                    obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
-                    zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
-                    obj.bufferData = [obj.bufferData; zero_pad];
-                    obj.bufferSampleCnt = size(obj.bufferData, 1);
-                    [data, ~] = Fetch(obj.hSGL, ...
-                        obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
-                        obj.hParams.NP.ip, ...
-                        new_s0, ...
-                        obj.hParams.OP.window_samples, ... 
-                        obj.hParams.NP.chans);
-                    obj.s0_np = new_s0;
-
-                else
-                    obj.stop();
-                    return;
-                end
-            end
-
-            [mi, ~] = size(data);
-            obj.s0_np = obj.s0_np + mi;
-            %assignin("base", "data_raw", data)
-            %assignin("base", "params", obj.hParams)
-            % append to array
-            %write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
-            %tic
-            obj.bufferData = [obj.bufferData; double(data) * obj.hParams.NP.i16uVmult];
-            obj.bufferSampleCnt = obj.bufferSampleCnt + mi;
-            %t = toc;
-            obj.t_append = [obj.t_append;t];
-            %disp(['Append time: ' num2str(t)])
-
-            if obj.bufferSampleCnt >= obj.hParams.OP.window_samples
-                obj.sendToWorker();
-                if obj.isEvent
-                    notify(obj, "EventFetched")
-                    obj.stop();
-                end
-            end
-
-        end
-
         function findEvent(obj)
-            
+            %% scan for events on NI stream
             [data_ni, si_ni] = Fetch(obj.hSGL, obj.hParams.NI.js, obj.hParams.NI.ip, ...
                 obj.s0_ni, obj.hParams.NI.event_scan_samples, obj.hParams.NI.event_chan);
             [mi_ni, ~] = size(data_ni);
@@ -280,16 +282,16 @@ classdef SpikeFetcher < handle
             obj.s0_ni = obj.s0_ni + mi_ni;
             
             event_sample = acquisition.extractEventSample(data_ni, si_ni, obj.hParams);
-            %event_sample = GetStreamSampleCount(obj.hSGL, obj.hParams.NI.js, obj.hParams.NI.ip);
-            % obj.testHistory = [obj.testHistory;data_ni];
-            % assignin("base", "th", obj.testHistory)
-            % assignin("base", "es", event_sample);
             if ~isempty(event_sample)
+                % event found, stop timer and switch to fetch neural data
+                % aroudn event
                 stop(obj.fetchTimer)
                 obj.fetchEvent(event_sample)
             end
+
+            % stop if maxScanAttempts reached (either even missed or no
+            % event was present)
             obj.scanAttempts = obj.scanAttempts + 1;
-            %disp(num2str(obj.scanAttempts))
             if obj.scanAttempts >= obj.maxScanAttempts
                 stop(obj.fetchTimer)
                 disp("event not found")
@@ -299,33 +301,13 @@ classdef SpikeFetcher < handle
 
         function fetchEvent(obj, event_sample)
 
-            obj.fetchTimer.TimerFcn = @obj.fetchChunkV2;
+            obj.fetchTimer.TimerFcn = @obj.fetchChunk;
             obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
             mapped_sample = MapSample(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip, ...
                 event_sample, obj.hParams.NI.js, obj.hParams.NI.ip);
             obj.s0_np = mapped_sample - obj.hParams.OP.prestim_samples;
             start(obj.fetchTimer)
-
-        end
-
-        function sendToWorker(obj)
-            %disp(['Before extracting: ' num2str(size(obj.bufferData,1))])
-            %tic
-            obj.data_uV = obj.bufferData(1:obj.hParams.OP.window_samples, :);
-            if obj.bufferSampleCnt > obj.hParams.OP.window_samples
-                obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
-                obj.bufferSampleCnt = size(obj.bufferData, 1);
-            else
-                obj.bufferData = [];
-                obj.bufferSampleCnt = 0;
-            end
-            %obj.t_extract = [obj.t_extract;toc];
-            %disp(['After extracting: ' num2str(size(obj.bufferData,1))])
-            fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
-            params = obj.hParams.toStruct();
-            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
-            afterEach(obj.Future, obj.plotFcn, 0);
 
         end
 
@@ -340,13 +322,8 @@ classdef SpikeFetcher < handle
             
         end
 
-        function fetchChunkV2(obj, ~, ~)
+        function fetchChunk(obj, ~, ~)
             %%
-            
-            obj.fetchCnt = obj.fetchCnt + 1;
-            %obj.metricsLog(obj.fetchCnt).cpu_timestamp = cputime - obj.tStart;
-            obj.metricsLog(obj.fetchCnt).timer_timestamp = datetime('now');%tic;%toc;%tic;
-
             if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
                 return;
             end
@@ -355,40 +332,38 @@ classdef SpikeFetcher < handle
                 return;
             end
             
-
-            obj.metricsLog(obj.fetchCnt).current_head = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
-            obj.metricsLog(obj.fetchCnt).buffer_margin = obj.metricsLog(obj.fetchCnt).current_head - obj.s0_np;
-            obj.metricsLog(obj.fetchCnt).s0_requested = obj.s0_np;
-            obj.metricsLog(obj.fetchCnt).requested_samples = obj.hParams.OP.window_samples;
             % update timer display (may not work) -> it does work (JS 6/18/25)
             obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
             % fetch data
             try %attempt to fetch
-            [data, ~] = Fetch(obj.hSGL, ...
-                obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
-                obj.hParams.NP.ip, ...
-                obj.s0_np, ...
-                obj.hParams.OP.window_samples, ... 
-                obj.hParams.NP.chans);
+                [data, ~] = Fetch(obj.hSGL, ...
+                    obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                    obj.hParams.NP.ip, ...
+                    obj.s0_np, ...
+                    obj.hParams.OP.window_samples, ... 
+                    obj.hParams.NP.chans);
             catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
                 msg = ME.message;
+                assignin("base", "ME", ME)
                 obj.displayInfoFcn(msg);
                 if obj.dropSamples
-                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip) + ...
+                        round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
 
                     drop_samps = new_s0 - obj.s0_np;
                     obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
-                    zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
-                    write(obj.buffer, zero_pad);
-                    %obj.bufferData = [obj.bufferData; zero_pad];
-                    %obj.bufferSampleCnt = size(obj.bufferData, 1);
-                    [data, ~] = Fetch(obj.hSGL, ...
-                        obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
-                        obj.hParams.NP.ip, ...
-                        new_s0, ...
-                        obj.hParams.OP.window_samples, ... 
-                        obj.hParams.NP.chans);
+                    % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
+                    % %write(obj.buffer, zero_pad);
+                    % %obj.bufferData = [obj.bufferData; zero_pad];
+                    % %obj.bufferSampleCnt = size(obj.bufferData, 1);
+                    % [data, ~] = Fetch(obj.hSGL, ...
+                    %     obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                    %     obj.hParams.NP.ip, ...
+                    %     new_s0, ...
+                    %     obj.hParams.OP.window_samples, ... 
+                    %     obj.hParams.NP.chans);
                     obj.s0_np = new_s0;
+                    return;
 
                 else
                     obj.stop();
@@ -398,28 +373,17 @@ classdef SpikeFetcher < handle
 
             [mi, ~] = size(data);
             obj.s0_np = obj.s0_np + mi;
-            obj.metricsLog(obj.fetchCnt).returned_samples = mi;
-            obj.metricsLog(obj.fetchCnt).s0_updated = obj.s0_np;
 
             
-
             %tic
             write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
             %t = toc;
             %obj.t_append = [obj.t_append;t];
             %disp(['V2 Append Time: ' num2str(t)])
             %disp(num2str(t*1000))
-            obj.testCnt = obj.testCnt + 1;
-            if obj.testCnt > obj.maxTestCnts
-                notify(obj, "FetchStopped")
-                return;
-                %obj.stop()
-            end
-            obj.sampleHistory(obj.testCnt) = mi;
 
             if obj.buffer.NumUnreadSamples >= obj.hParams.OP.window_samples
-                obj.bufferFilledHistory(obj.testCnt) = true;
-                obj.sendToWorkerV2();
+                obj.sendToWorker();
                 if obj.isEvent
                     notify(obj, "EventFetched")
                     obj.stop();
@@ -429,25 +393,124 @@ classdef SpikeFetcher < handle
 
         end
 
-        function sendToWorkerV2(obj)
-            %disp(['Before reading:' num2str(obj.buffer.NumUnreadSamples)])
-            %tic
-            obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);%obj.bufferData(1:obj.hParams.OP.window_samples, :);
-            %obj.t_extract = [obj.t_extract;toc];
-            %info(obj.buffer)
-            %disp(['After reading :' num2str(obj.buffer.NumUnreadSamples)])
-            % if obj.bufferSampleCnt > obj.hParams.OP.window_samples
-            %     obj.bufferData = obj.bufferData(obj.hParams.OP.window_samples+1:end, :);
-            %     obj.bufferSampleCnt = size(obj.bufferData, 1);
-            % else
-            %     obj.bufferData = [];
-            %     obj.bufferSampleCnt = 0;
-            % end
-            
+        function sendToWorker(obj)
+
+            obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);
             fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
             obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
             afterEach(obj.Future, obj.plotFcn, 0);
+
+        end
+
+        function fetchChunkWithMetrics(obj, ~, ~)
+            %%
+            
+            
+            %obj.metricsLog(obj.fetchCnt).cpu_timestamp = cputime - obj.tStart;
+            
+
+            if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
+                return;
+            end
+            if ~IsRunning(obj.hSGL)
+                obj.stop();
+                return;
+            end
+            obj.metricsLog(obj.runBlock).timer_timestamp(obj.fetchCnt) = datetime('now');%tic;%toc;%tic;
+            
+
+            obj.metricsLog(obj.runBlock).current_head(obj.fetchCnt) = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+            obj.metricsLog(obj.runBlock).buffer_margin(obj.fetchCnt) = obj.metricsLog(obj.runBlock).current_head(obj.fetchCnt) - obj.s0_np;
+            obj.metricsLog(obj.runBlock).s0_requested(obj.fetchCnt) = obj.s0_np;
+            obj.metricsLog(obj.runBlock).requested_samples(obj.fetchCnt) = obj.hParams.OP.window_samples;
+            % update timer display (may not work) -> it does work (JS 6/18/25)
+            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
+            % fetch data
+            try %attempt to fetch
+                [data, ~] = Fetch(obj.hSGL, ...
+                    obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                    obj.hParams.NP.ip, ...
+                    obj.s0_np, ...
+                    obj.hParams.OP.window_samples, ... 
+                    obj.hParams.NP.chans);
+            catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
+                msg = ME.message;
+                obj.displayInfoFcn(msg);
+                if obj.dropSamples
+                    % try to get ahead
+                    new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip) + ...
+                        round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
+                    
+                    drop_samps = new_s0 - obj.s0_np;
+                    obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
+                    % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
+                    % write(obj.buffer, zero_pad);
+                    % 
+                    % [data, ~] = Fetch(obj.hSGL, ...
+                    %     obj.hParams.NP.js_filtered*obj.hParams.NP.js, ...
+                    %     obj.hParams.NP.ip, ...
+                    %     new_s0, ...
+                    %     obj.hParams.OP.window_samples, ... 
+                    %     obj.hParams.NP.chans);
+                    obj.s0_np = new_s0;
+                    obj.metricsLog(obj.runBlock).returned_samples(obj.fetchCnt) = 0;
+                    obj.metricsLog(obj.runBlock).s0_updated(obj.fetchCnt) = obj.s0_np;
+                    obj.fetchCnt = obj.fetchCnt + 1;
+                    if obj.fetchCnt > obj.maxTestCnts
+                        %notify(obj, "FetchStopped")
+                        obj.stop()
+                        setupNextPerformanceRun(obj)
+                        return;
+                        %obj.stop()
+                    end
+                    return;
+                    %obj.stop();
+                    %return;
+
+                else
+                    obj.stop();
+                    return;
+                end
+            end
+
+
+
+            [mi, ~] = size(data);
+            obj.s0_np = obj.s0_np + mi;
+            obj.metricsLog(obj.runBlock).returned_samples(obj.fetchCnt) = mi;
+            obj.metricsLog(obj.runBlock).s0_updated(obj.fetchCnt) = obj.s0_np;
+
+            
+
+            %tic
+            write(obj.buffer, double(data) * obj.hParams.NP.i16uVmult);
+            %t = toc;
+            %obj.t_append = [obj.t_append;t];
+            %disp(['V2 Append Time: ' num2str(t)])
+            %disp(num2str(t*1000))
+            
+            
+            %obj.metricsLog(obj.runBlock).buffer_filled(obj.fetchCnt) = false;
+            if obj.buffer.NumUnreadSamples >= obj.hParams.OP.window_samples
+                obj.metricsLog(obj.runBlock).buffer_filled(obj.fetchCnt) = true;
+                obj.sendToWorker();
+                if obj.isEvent
+                    notify(obj, "EventFetched")
+                    obj.stop();
+                end
+            end
+
+            %obj.testCnt = obj.testCnt + 1;
+            obj.fetchCnt = obj.fetchCnt + 1;
+            if obj.fetchCnt > obj.maxTestCnts
+                %notify(obj, "FetchStopped")
+                obj.stop()
+                setupNextPerformanceRun(obj)
+                return;
+                %obj.stop()
+            end
+            
 
         end
 
@@ -504,13 +567,13 @@ classdef SpikeFetcher < handle
             
             unique_windows = unique(window_lengths);
             for i = 1:length(unique_windows)
-                figure('Name', ['Window Length == ' num2str(unique_windows(i))]);
+                figure('Name', ['Window Length == ' num2str(unique_windows(i))], 'Theme', 'light');
                 title(['Window Length == ' num2str(unique_windows(i))])
                 locs = find(window_lengths==unique_windows(i));
-
+                
                 for c = 1:length(locs)
                     requested_period = fetch_fractions(locs(c)) * unique_windows(i);
-                    plot(actual_period{locs(c)}-requested_period, 'Tag', num2str(fetch_fractions(locs(c))))
+                    plot(actual_period{locs(c)}-requested_period, 'DisplayName', num2str(fetch_fractions(locs(c))))
                     hold on
 
                 end
@@ -528,6 +591,10 @@ classdef SpikeFetcher < handle
             % hold on
             % yline(obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction)
 
+        end
+
+        function headPlot(obj)
+            
         end
 
         function computeContinuity(obj)
@@ -573,10 +640,21 @@ classdef SpikeFetcher < handle
 
         
         function setupMetrics(obj)
-            obj.metricsLog = struct("run_block", [], "s0_requested", [], "requested_samples", [], ...
+            obj.metricsLog = struct("run_block", [], "fetch_fraction", [], "window_length", [], ...
+                "fetch_length", [], "s0_requested", [], "requested_samples", [], ...
                 "returned_samples", [], "s0_updated", [], "current_head", [], ...
-                "buffer_margin", [], "timer_timestamp", [], "fetch_fraction", [], ...
-                "window_length", []);
+                "buffer_margin", [], "timer_timestamp", [], "buffer_filled", []);
+            
+            obj.runBlock = 1;
+            obj.fetchCnt = 1;
+            obj.testParams = struct("test_length", 600, ...%30, ...
+                                    "window_lengths", [0.25], ...%[0.25, 0.5, 0.75, 1], ...
+                                    "fetch_fractions", [0.1, 0.25, 0.5, 0.75, 1], ...
+                                    "fetch_lengths", [0.05], ...%[0.05, 0.1, 0.15, 0.2, 0.25], ...
+                                    "wl_cnt", 1, ...
+                                    "ff_cnt", 1, ...
+                                    "fl_cnt", 1);
+            initializeMetricsBlock(obj);
             %obj.fMetrics = figure('Name', 'SpikeFetcher Metrics');
             %obj.tlMetrics = tiledlayout('flow');
             %nexttile;
@@ -584,7 +662,105 @@ classdef SpikeFetcher < handle
 
 
         end
+        function initializeMetricsBlock(obj)
+
+            wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
+            fl = obj.testParams.fetch_lengths(obj.testParams.fl_cnt);
+            obj.hParams.updateWindowLength(wl);%OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
+            obj.hParams.OP.fetch_fraction = fl/wl;%obj.testParams.fetch_fractions(ff_cnt);
+
+            %obj.testCnt = 0;
+            obj.maxTestCnts = round(obj.testParams.test_length / (fl));
+            obj.metricsLog(obj.runBlock).run_block = obj.runBlock;
+            obj.metricsLog(obj.runBlock).fetch_fraction = fl/wl;
+            obj.metricsLog(obj.runBlock).fetch_length = fl;
+            obj.metricsLog(obj.runBlock).window_length = wl;
+            obj.metricsLog(obj.runBlock).s0_requested = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).requested_samples = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).returned_samples = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).s0_updated = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).scurrent_head = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).buffer_margin = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).timer_timestamp = NaT(obj.maxTestCnts, 1);%zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).bufer_filled = zeros(obj.maxTestCnts, 1);
+
+            
+
+        end
+
+        function setupNextPerformanceRun(obj)
+
+            %locs = cellfun(@(c) isempty(c), {obj.metricsLog.fetch_fraction});
+            %[obj.metricsLog(locs).fetch_fraction] = deal(obj.hParams.OP.fetch_fraction);
+            %[obj.metricsLog(locs).window_length] = deal(obj.hParams.OP.window_len);
+            %[obj.metricsLog(locs).run_block] = deal(obj.runBlock);
+            obj.fetchCnt = 1;
+            obj.runBlock = obj.runBlock + 1;
+            obj.testParams.fl_cnt = obj.testParams.fl_cnt + 1;
+            if obj.testParams.fl_cnt > length(obj.testParams.fetch_lengths)
+                
+                obj.testParams.wl_cnt = obj.testParams.wl_cnt + 1;
+                if obj.testParams.wl_cnt > length(obj.testParams.window_lengths)
+                    obj.displayInfoFcn('Performance testing completed.')
+                    return;
+                end
+                obj.testParams.fl_cnt = 1;
+            end
+
+            [flag, msg] = obj.ensureConnection();
+            if ~flag % return if SpikeGLX connection errors
+                obj.isAcquiring = false;
+                return
+            end
+            if ~IsRunning(obj.hSGL) % return if data is not being acquired
+                obj.isAcquiring = false;
+                msg = 'SpikeGLX not acquiring data.';
+                return
+            end
+            obj.isAcquiring = true;
+            obj.cleanupBuffer();
+            obj.initializeBuffer();
+            
+            obj.initializeMetricsBlock();
+            %wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
+            %ff = obj.testParams.fetch_fractions(obj.testParams.ff_cnt);
+            %obj.hParams.OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
+            %obj.hParams.OP.fetch_fraction = ff;%obj.testParams.fetch_fractions(ff_cnt);
+
+            %obj.testCnt = 0;
+            %obj.maxTestCnts = round(obj.testParams.test_length / (wl * ff));
+
+            obj.fetchTimer.TimerFcn = @obj.fetchChunkWithMetrics;
+            obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+            wl = obj.hParams.OP.window_len;
+            ff = obj.hParams.OP.fetch_fraction;
+            %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+
+            obj.displayInfoFcn(repelem('-', 40))
+            obj.displayInfoFcn(['Run ' num2str(obj.runBlock)])
+            obj.displayInfoFcn(['Window Length: ' num2str(wl) 'sec'])
+            obj.displayInfoFcn(['Fetch Fraction: ' num2str(ff)])
+            obj.displayInfoFcn(['Fetch Length: ' num2str(wl*ff) 'sec'])
+            obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
+            start(obj.fetchTimer)
+            
+
+
+        end
+
+        function handleFetchTimerError(obj, src, event)
+            assignin("base", "src", src)
+            assignin("base", "event", event)
+            
+            obj.stop()
+            obj.displayInfoFcn(event.Data.message)
+
+        end
+
+        
+
         
     end
+   
 
 end

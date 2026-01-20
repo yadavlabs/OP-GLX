@@ -11,6 +11,6 @@ function result = pcaSpikes(data,params)
 binned_spikes = accumarray([spike_chans, bin_idx], 1, [params.NP.num_chans, params.OP.max_bins], @sum, 0)'; 
 firing_rate = binned_spikes / params.OP.bin_size;
 [coeff, score, ~, ~, explained] = pca(firing_rate);
-result = {data, spike_times, spike_chans, firing_rate, score, 'pca'};
+result = {data, spike_times, spike_chans, firing_rate, score, params, 'pca'};
 end
 
