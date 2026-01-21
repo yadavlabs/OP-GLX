@@ -64,6 +64,7 @@ classdef SpikeFetcher < handle
         testParams
         runBlock = 1;
         metricsLog
+        workerLog
         fetchCnt = 1;
         fMetrics
         tlMetrics
@@ -136,7 +137,8 @@ classdef SpikeFetcher < handle
             obj.isEvent = false;
             obj.dropSamples = true;
             obj.initializeBuffer();
-            obj.setupMetrics();
+            
+
 
             
 
@@ -161,10 +163,11 @@ classdef SpikeFetcher < handle
             % obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
         end
 
-        function msg = start(obj, fetchType)%, eventFcn)
+        function msg = start(obj, fetchType, opts)%, eventFcn)
             arguments
                 obj acquisition.SpikeFetcher
                 fetchType (1,:) char {mustBeMember(fetchType, {'Continuous', 'Event', 'TestPerformance'})} = 'Continuous'
+                opts.testParams = []
             end
             %% Start fetching
             [flag, msg] = obj.ensureConnection();
@@ -216,7 +219,12 @@ classdef SpikeFetcher < handle
                     notify(obj, "DeliverStimulus")
 
                 case 'TestPerformance'
-                    obj.setupMetrics();
+                    if isempty(opts.testParams)
+                        obj.setupMetrics();
+                    else
+                        setupMetrics(obj, "testParams", opts.testParams)
+                    end
+                    obj.initializeBuffer();
                     % wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
                     % ff = obj.testParams.fetch_fractions(obj.testParams.ff_cnt);
                     % obj.hParams.OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
@@ -228,8 +236,8 @@ classdef SpikeFetcher < handle
                     obj.fetchTimer.TimerFcn = @obj.fetchChunkWithMetrics;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
                     wl = obj.hParams.OP.window_len;
-                    ff =obj.hParams.OP.fetch_fraction;
-                    %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    ff = obj.hParams.OP.fetch_fraction;
+                    obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
                     obj.displayInfoFcn(repelem('=', 40))
                     obj.displayInfoFcn(repelem('=', 40))
@@ -394,12 +402,13 @@ classdef SpikeFetcher < handle
         end
 
         function sendToWorker(obj)
-
+            
             obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);
             fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
             obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
             afterEach(obj.Future, obj.plotFcn, 0);
+            
 
         end
 
@@ -418,11 +427,16 @@ classdef SpikeFetcher < handle
                 return;
             end
             obj.metricsLog(obj.runBlock).timer_timestamp(obj.fetchCnt) = datetime('now');%tic;%toc;%tic;
-            
+            %fprintf('%d\n', obj.fetchCnt)
 
             obj.metricsLog(obj.runBlock).current_head(obj.fetchCnt) = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
-            obj.metricsLog(obj.runBlock).buffer_margin(obj.fetchCnt) = obj.metricsLog(obj.runBlock).current_head(obj.fetchCnt) - obj.s0_np;
+            obj.metricsLog(obj.runBlock).acquisition_lag(obj.fetchCnt) = obj.metricsLog(obj.runBlock).current_head(obj.fetchCnt) - obj.s0_np;
             obj.metricsLog(obj.runBlock).s0_requested(obj.fetchCnt) = obj.s0_np;
+            
+            % if obj.fetchCnt > 1
+            %     fprintf('%d, %d\n', obj.fetchCnt-1, obj.metricsLog(obj.runBlock).s0_requested(obj.fetchCnt-1))
+            % end
+            % fprintf('%d, %d\n', obj.fetchCnt, obj.metricsLog(obj.runBlock).s0_requested(obj.fetchCnt))
             obj.metricsLog(obj.runBlock).requested_samples(obj.fetchCnt) = obj.hParams.OP.window_samples;
             % update timer display (may not work) -> it does work (JS 6/18/25)
             obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
@@ -455,6 +469,7 @@ classdef SpikeFetcher < handle
                     %     obj.hParams.NP.chans);
                     obj.s0_np = new_s0;
                     obj.metricsLog(obj.runBlock).returned_samples(obj.fetchCnt) = 0;
+                    obj.metricsLog(obj.runBlock).samples_dropped(obj.fetchCnt) = true;
                     obj.metricsLog(obj.runBlock).s0_updated(obj.fetchCnt) = obj.s0_np;
                     obj.fetchCnt = obj.fetchCnt + 1;
                     if obj.fetchCnt > obj.maxTestCnts
@@ -494,7 +509,7 @@ classdef SpikeFetcher < handle
             %obj.metricsLog(obj.runBlock).buffer_filled(obj.fetchCnt) = false;
             if obj.buffer.NumUnreadSamples >= obj.hParams.OP.window_samples
                 obj.metricsLog(obj.runBlock).buffer_filled(obj.fetchCnt) = true;
-                obj.sendToWorker();
+                obj.sendToWorkerWithMetrics(obj.runBlock, obj.fetchCnt);
                 if obj.isEvent
                     notify(obj, "EventFetched")
                     obj.stop();
@@ -510,6 +525,24 @@ classdef SpikeFetcher < handle
                 return;
                 %obj.stop()
             end
+            
+            
+            
+
+        end
+        function sendToWorkerWithMetrics(obj, run_block, fetch_cnt)
+            
+            obj.data_uV = read(obj.buffer, obj.hParams.OP.window_samples);
+            fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
+            params = obj.hParams.toStruct();
+            
+
+            obj.workerLog(run_block).worker_start_time(fetch_cnt) = datetime('now');
+            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
+
+            afterEach(obj.Future, @(~)obj.logWorkerCompletionTime(run_block, fetch_cnt), 0);
+            plotFuture = afterEach(obj.Future, obj.plotFcn, 0);
+            afterEach(plotFuture, @(~)obj.logPlotCompletionTime(run_block, fetch_cnt), 0);
             
 
         end
@@ -608,6 +641,24 @@ classdef SpikeFetcher < handle
             % plot(1:length(actual_s0), actual_s0, '--')
             % legend('Expected Request', 'Actual Request');
         end
+        function backupLog(obj)
+            fpath = "C:\Users\slack\Github\OP-GLX\tests\PerformanceTesting\";
+            fname = sprintf("20260121_run_%02d.mat", obj.runBlock);
+
+            metricsData = struct();
+            for f = string(fieldnames(obj.metricsLog))'
+                metricsData.(f) = obj.metricsLog(obj.runBlock).(f);
+            end
+            for f = string(fieldnames(obj.workerLog))'
+                metricsData.(f) = obj.workerLog(obj.runBlock).(f);
+            end
+
+
+            save(fullfile(fpath, fname), "metricsData")
+
+        end
+
+
 
 
     end
@@ -629,7 +680,7 @@ classdef SpikeFetcher < handle
         function initializeBuffer(obj)
             obj.buffer = dsp.AsyncBuffer(obj.hParams.OP.window_samples*2);
             write(obj.buffer, ...
-                zeros(obj.hParams.OP.window_samples * obj.hParams.OP.fetch_fraction,obj.hParams.NP.num_chans));
+                zeros(round(obj.hParams.OP.window_samples * obj.hParams.OP.fetch_fraction),obj.hParams.NP.num_chans));
             read(obj.buffer, obj.buffer.NumUnreadSamples);
         end
 
@@ -638,22 +689,45 @@ classdef SpikeFetcher < handle
             release(obj.buffer)
         end
 
+        function logWorkerCompletionTime(obj, run_block, fetch_cnt)
+            obj.workerLog(run_block).worker_completion_time(fetch_cnt) = datetime('now');
+            
+        end
+        function logPlotCompletionTime(obj, run_block, fetch_cnt)
+            obj.workerLog(run_block).plot_completion_time(fetch_cnt) = datetime('now');
+        end
         
-        function setupMetrics(obj)
+        function setupMetrics(obj, opts)
+            arguments
+                obj 
+                opts.testParams 
+            end
             obj.metricsLog = struct("run_block", [], "fetch_fraction", [], "window_length", [], ...
                 "fetch_length", [], "s0_requested", [], "requested_samples", [], ...
                 "returned_samples", [], "s0_updated", [], "current_head", [], ...
-                "buffer_margin", [], "timer_timestamp", [], "buffer_filled", []);
-            
+                "acquisition_lag", [], "timer_timestamp", [], "buffer_filled", [], "samples_dropped", []);
+            % Issue where metricsLog values would appear to be set in
+            % fetchChunkWithMetrics but then returned to previous value
+            % defined in initializeMetricsBlock. Fairly certain this was
+            % due to "set" conflicts where
+            % logWorkerCompletionTime/logPlotCompletionTime would set
+            % metricsLog values at the same time as fetchChunkWithMetrics.
+            % To handle this, a seperate log property is used for logging
+            % processing/plotting timestamps.
+            obj.workerLog = struct("worker_start_time", [], "worker_completion_time", [], "plot_completion_time", []);
             obj.runBlock = 1;
             obj.fetchCnt = 1;
-            obj.testParams = struct("test_length", 600, ...%30, ...
-                                    "window_lengths", [0.25], ...%[0.25, 0.5, 0.75, 1], ...
-                                    "fetch_fractions", [0.1, 0.25, 0.5, 0.75, 1], ...
-                                    "fetch_lengths", [0.05], ...%[0.05, 0.1, 0.15, 0.2, 0.25], ...
-                                    "wl_cnt", 1, ...
-                                    "ff_cnt", 1, ...
-                                    "fl_cnt", 1);
+            if ~isfield(opts, "testParams")
+                obj.testParams = struct("test_length", 600, ...%30, ...
+                                        "window_lengths", [0.25], ...%[0.25, 0.5, 0.75, 1], ...
+                                        "fetch_fractions", [0.1, 0.25, 0.5, 0.75, 1], ...
+                                        "fetch_lengths", [0.05], ...%[0.05, 0.1, 0.15, 0.2, 0.25], ...
+                                        "wl_cnt", 1, ...
+                                        "ff_cnt", 1, ...
+                                        "fl_cnt", 1);
+            else
+                obj.testParams = opts.testParams;
+            end
             initializeMetricsBlock(obj);
             %obj.fMetrics = figure('Name', 'SpikeFetcher Metrics');
             %obj.tlMetrics = tiledlayout('flow');
@@ -671,6 +745,7 @@ classdef SpikeFetcher < handle
 
             %obj.testCnt = 0;
             obj.maxTestCnts = round(obj.testParams.test_length / (fl));
+            %fprintf('Max Fetches: %d\n', obj.maxTestCnts)
             obj.metricsLog(obj.runBlock).run_block = obj.runBlock;
             obj.metricsLog(obj.runBlock).fetch_fraction = fl/wl;
             obj.metricsLog(obj.runBlock).fetch_length = fl;
@@ -679,12 +754,16 @@ classdef SpikeFetcher < handle
             obj.metricsLog(obj.runBlock).requested_samples = zeros(obj.maxTestCnts, 1);
             obj.metricsLog(obj.runBlock).returned_samples = zeros(obj.maxTestCnts, 1);
             obj.metricsLog(obj.runBlock).s0_updated = zeros(obj.maxTestCnts, 1);
-            obj.metricsLog(obj.runBlock).scurrent_head = zeros(obj.maxTestCnts, 1);
-            obj.metricsLog(obj.runBlock).buffer_margin = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).current_head = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).acquisition_lag = zeros(obj.maxTestCnts, 1);
             obj.metricsLog(obj.runBlock).timer_timestamp = NaT(obj.maxTestCnts, 1);%zeros(obj.maxTestCnts, 1);
-            obj.metricsLog(obj.runBlock).bufer_filled = zeros(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).buffer_filled = false(obj.maxTestCnts, 1);
+            obj.metricsLog(obj.runBlock).samples_dropped = false(obj.maxTestCnts, 1);
+            obj.workerLog(obj.runBlock).worker_start_time = NaT(obj.maxTestCnts, 1);
+            obj.workerLog(obj.runBlock).worker_completion_time = NaT(obj.maxTestCnts, 1);
+            obj.workerLog(obj.runBlock).plot_completion_time = NaT(obj.maxTestCnts, 1);
 
-            
+            %fprintf('%d\n',length(obj.metricsLog(obj.runBlock).plot_completion_time))
 
         end
 
@@ -694,10 +773,11 @@ classdef SpikeFetcher < handle
             %[obj.metricsLog(locs).fetch_fraction] = deal(obj.hParams.OP.fetch_fraction);
             %[obj.metricsLog(locs).window_length] = deal(obj.hParams.OP.window_len);
             %[obj.metricsLog(locs).run_block] = deal(obj.runBlock);
+            %backupLog(obj)
             obj.fetchCnt = 1;
             obj.runBlock = obj.runBlock + 1;
             obj.testParams.fl_cnt = obj.testParams.fl_cnt + 1;
-            if obj.testParams.fl_cnt > length(obj.testParams.fetch_lengths)
+            if obj.testParams.fl_cnt > length(obj.testParams.fetch_lengths) || obj.testParams.fetch_lengths(obj.testParams.fl_cnt) > obj.testParams.window_lengths(obj.testParams.wl_cnt)
                 
                 obj.testParams.wl_cnt = obj.testParams.wl_cnt + 1;
                 if obj.testParams.wl_cnt > length(obj.testParams.window_lengths)
@@ -706,6 +786,7 @@ classdef SpikeFetcher < handle
                 end
                 obj.testParams.fl_cnt = 1;
             end
+            obj.initializeMetricsBlock();
 
             [flag, msg] = obj.ensureConnection();
             if ~flag % return if SpikeGLX connection errors
@@ -721,7 +802,7 @@ classdef SpikeFetcher < handle
             obj.cleanupBuffer();
             obj.initializeBuffer();
             
-            obj.initializeMetricsBlock();
+            
             %wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
             %ff = obj.testParams.fetch_fractions(obj.testParams.ff_cnt);
             %obj.hParams.OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
@@ -734,6 +815,8 @@ classdef SpikeFetcher < handle
             obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
             wl = obj.hParams.OP.window_len;
             ff = obj.hParams.OP.fetch_fraction;
+
+
             %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
             obj.displayInfoFcn(repelem('-', 40))
@@ -741,6 +824,8 @@ classdef SpikeFetcher < handle
             obj.displayInfoFcn(['Window Length: ' num2str(wl) 'sec'])
             obj.displayInfoFcn(['Fetch Fraction: ' num2str(ff)])
             obj.displayInfoFcn(['Fetch Length: ' num2str(wl*ff) 'sec'])
+
+
             obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
             start(obj.fetchTimer)
             
@@ -756,6 +841,8 @@ classdef SpikeFetcher < handle
             obj.displayInfoFcn(event.Data.message)
 
         end
+
+        
 
         
 
