@@ -1,4 +1,35 @@
 classdef SpikeFetcher < handle
+        % SpikeFetcher Class
+        % This class is designed to fetch and process data from SpikeGLX stream buffers.
+        % It allows for continuous or event-based data fetching and provides methods
+        % for handling the fetched data, including buffering and processing.
+        %
+        % Usage:
+        %   fetcher = SpikeFetcher(opts)
+        %   fetcher.start(fetchType, opts)
+        %
+        % Properties:
+        %   hSGL - SpikeGLX client object for data acquisition
+        %   s0_np - Sample count for neural data acquisition
+        %   s0_ni - Sample count for event data acquisition
+        %   bufferData - Buffer for storing fetched data
+        %   bufferSampleCnt - Current number of samples in the buffer
+        %   data_uV - Processed data window from the buffer
+        %   fetchTimer - Timer object for managing data fetching
+        %   fetchType - Type of fetching ('Continuous' or 'Event')
+        %   isAcquiring - Flag indicating if data fetching is active
+        %   isEvent - Flag indicating if the current fetch is event-based
+        %   dropSamples - Flag to determine if samples should be dropped
+        %   hParams - Parameter handle containing acquisition parameters
+        %
+        % Methods:
+        %   setupTimer() - Configures the timer for fetching data
+        %   start(fetchType, opts) - Initiates data fetching based on the specified type
+        %   handleFetchTimerError() - Handles errors that occur during fetching
+        %   initializeBuffer() - Prepares the buffer for data storage
+        %   ensureConnection() - Checks and ensures a valid connection to SpikeGLX
+        %   fetchChunk() - Fetches a chunk of data from the stream
+        %   processFetchedData() - Processes the fetched data for further analysis
     % SPIKEFETCHER Summary of SpikeFetcher
     %   Class for fetching incoming data from SpikeGLX stream buffers and
     %   processing the data based on a specified time window.
@@ -100,13 +131,13 @@ classdef SpikeFetcher < handle
                 opts.fetchErrorFcn
 
             end
+            
+            
+
             obj.hParams = opts.parameters;
+            obj.displayInfoFcn = opts.displayInfoFcn;
             if ~isfield(opts, "threadPool")
-                if isempty(gcp("nocreate"))
-                    obj.thPool = parpool("Threads");
-                else
-                    obj.thPool = gcp("nocreate");
-                end
+                obj.initializeThreadPool()
             end
             
             if ~isfield(opts, "plotFcn")
@@ -123,20 +154,14 @@ classdef SpikeFetcher < handle
                 obj.fetchErrorFcn = @obj.handleFetchTimerError;
             end
             
-
-            %obj.hParams = hParams;
-            %obj.thPool = thPool;
-            %obj.plotFcn = plotFcn;
-            %obj.timerDisplayUpdateFcn = timerDisplayUpdateFcn;
-            obj.displayInfoFcn = opts.displayInfoFcn;
-            %obj.fetchErrorFcn = fetchErrorFcn;
+            
             obj.setupTimer();
-            %obj.bufferData = [];
-            %obj.bufferSampleCnt = 0;
             obj.isAcquiring = false;
             obj.isEvent = false;
             obj.dropSamples = true;
             obj.initializeBuffer();
+            obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID, 'Initialized!'));
+
             
 
 
@@ -163,7 +188,7 @@ classdef SpikeFetcher < handle
             % obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
         end
 
-        function msg = start(obj, fetchType, opts)%, eventFcn)
+        function msg = start(obj, fetchType, opts)
             arguments
                 obj acquisition.SpikeFetcher
                 fetchType (1,:) char {mustBeMember(fetchType, {'Continuous', 'Event', 'TestPerformance'})} = 'Continuous'
@@ -173,6 +198,7 @@ classdef SpikeFetcher < handle
             [flag, msg] = obj.ensureConnection();
             if ~flag % return if SpikeGLX connection errors
                 obj.isAcquiring = false;
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID, 'Spike-GLX connection error.'))
                 return
             end
             if ~IsRunning(obj.hSGL) % return if data is not being acquired
@@ -184,8 +210,6 @@ classdef SpikeFetcher < handle
             obj.t_append = [];
             obj.t_extract = [];
             obj.isAcquiring = true;
-            %obj.bufferData = [];
-            %obj.bufferSampleCnt = 0;
             obj.cleanupBuffer();
             obj.initializeBuffer();
             
@@ -225,13 +249,6 @@ classdef SpikeFetcher < handle
                         setupMetrics(obj, "testParams", opts.testParams)
                     end
                     obj.initializeBuffer();
-                    % wl = obj.testParams.window_lengths(obj.testParams.wl_cnt);
-                    % ff = obj.testParams.fetch_fractions(obj.testParams.ff_cnt);
-                    % obj.hParams.OP.window_len = wl;%obj.testParams.window_lengths(wl_cnt);
-                    % obj.hParams.OP.fetch_fraction = ff;%obj.testParams.fetch_fractions(ff_cnt);
-                    % 
-                    % %obj.testCnt = 0;
-                    % obj.maxTestCnts = obj.testParams.test_length / (wl * ff);
 
                     obj.fetchTimer.TimerFcn = @obj.fetchChunkWithMetrics;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
@@ -302,7 +319,7 @@ classdef SpikeFetcher < handle
             obj.scanAttempts = obj.scanAttempts + 1;
             if obj.scanAttempts >= obj.maxScanAttempts
                 stop(obj.fetchTimer)
-                disp("event not found")
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,'Event not found.'))
                 notify(obj, "EventNotFound")
             end
         end
@@ -353,13 +370,13 @@ classdef SpikeFetcher < handle
             catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
                 msg = ME.message;
                 assignin("base", "ME", ME)
-                obj.displayInfoFcn(msg);
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,msg));
                 if obj.dropSamples
                     new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip) + ...
                         round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
 
                     drop_samps = new_s0 - obj.s0_np;
-                    obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
+                    obj.displayInfoFcn(utils.formatMessage(opxgl.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
                     % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     % %write(obj.buffer, zero_pad);
                     % %obj.bufferData = [obj.bufferData; zero_pad];
@@ -450,14 +467,14 @@ classdef SpikeFetcher < handle
                     obj.hParams.NP.chans);
             catch ME % if error occurs, get current sample and attempt to fetch again, reporting dropped samples
                 msg = ME.message;
-                obj.displayInfoFcn(msg);
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,msg));
                 if obj.dropSamples
                     % try to get ahead
                     new_s0 = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip) + ...
                         round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
                     
                     drop_samps = new_s0 - obj.s0_np;
-                    obj.displayInfoFcn(['Dropped samples: ' num2str(drop_samps)])
+                    obj.displayInfoFcn(utils.formatMessage(opgxl.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
                     % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     % write(obj.buffer, zero_pad);
                     % 
@@ -547,100 +564,6 @@ classdef SpikeFetcher < handle
 
         end
 
-        function plotJitter(obj)
-
-            actualPeriodSec = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
-            actualPeriodSamps = actualPeriodSec * obj.hParams.NP.fs;
-            x = 1:obj.maxTestCnts;
-            figure;
-            plot(x, obj.sampleHistory)
-            hold on
-            yline(actualPeriodSamps, "LineStyle", "--")
-            plot(x(obj.bufferFilledHistory), obj.sampleHistory(obj.bufferFilledHistory), "ro")
-
-
-
-        end
-
-        function plotJitterDist(obj)
-
-            figure;
-            %plot(obj.sampleHistory(obj.bufferFilledHistory))
-            x = 1:obj.maxTestCnts;
-            %jitter(1:)
-        end
-
-        function computeMetrics(obj)
-   
-            % coverage = [obj.metricsLog.returned_samples] ./ [obj.metricsLog.requested_samples];
-            % plot(coverage)
-            
-            
-            actual_period = diff([obj.metricsLog.timer_timestamp]);
-
-    
-
-            
-
-
-        end
-
-        function computeJitter(obj)
-            
-            actual_period = cell(obj.runBlock-1, 1);
-            window_lengths = zeros(obj.runBlock-1, 1);
-            fetch_fractions = zeros(obj.runBlock-1,1);
-            for i = 1:(obj.runBlock - 1)
-                locs = [obj.metricsLog.run_block] == i;
-                actual_period{i} = seconds(diff([obj.metricsLog(locs).timer_timestamp]));
-                window_lengths(i) = obj.metricsLog(locs).window_length;
-                fetch_fractions(i) = obj.metricsLog(locs).fetch_fraction;
-
-            end
-            
-            unique_windows = unique(window_lengths);
-            for i = 1:length(unique_windows)
-                figure('Name', ['Window Length == ' num2str(unique_windows(i))], 'Theme', 'light');
-                title(['Window Length == ' num2str(unique_windows(i))])
-                locs = find(window_lengths==unique_windows(i));
-                
-                for c = 1:length(locs)
-                    requested_period = fetch_fractions(locs(c)) * unique_windows(i);
-                    plot(actual_period{locs(c)}-requested_period, 'DisplayName', num2str(fetch_fractions(locs(c))))
-                    hold on
-
-                end
-                legend;
-            end
-
-            % jitter = actual_period - obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
-            % figure;
-            % plot(jitter)
-            % hold on;
-            % yline(mean(jitter))
-
-            % figure
-            % plot(actual_period)
-            % hold on
-            % yline(obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction)
-
-        end
-
-        function headPlot(obj)
-            
-        end
-
-        function computeContinuity(obj)
-           expected_s0 = [obj.metricsLog(1:end-1).s0_requested] + [obj.metricsLog(1:end-1).returned_samples];
-           actual_s0 = [obj.metricsLog(2:end).s0_requested];
-           gap = actual_s0 > expected_s0;
-           overlap = actual_s0 < expected_s0; 
-            % figure
-            % plot(1:length(expected_s0), expected_s0)
-            % hold on
-            % plot(1:length(actual_s0), actual_s0, '--')
-            % legend('Expected Request', 'Actual Request');
-        end
         function backupLog(obj)
             fpath = "C:\Users\slack\Github\OP-GLX\tests\PerformanceTesting\";
             fname = sprintf("20260121_run_%02d.mat", obj.runBlock);
@@ -674,6 +597,16 @@ classdef SpikeFetcher < handle
             catch ME
                 flag = false;
                 msg = ME.message;
+            end
+        end
+
+        function initializeThreadPool(obj)
+            %% initialize parallel pool
+            if isempty(gcp('nocreate'))
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,'Starting parallel pool'))
+                obj.thPool = parpool('Threads');
+            else
+                obj.thPool = gcp('nocreate');
             end
         end
 
@@ -838,7 +771,7 @@ classdef SpikeFetcher < handle
             assignin("base", "event", event)
             
             obj.stop()
-            obj.displayInfoFcn(event.Data.message)
+            obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,event.Data.message))
 
         end
 

@@ -1,5 +1,5 @@
 function fcnStruct = getPackageFunctions(packageName)
-%% Returns structure containing functions in a +packageName folder
+%% Returns structure containing functions in a +packageName namespace folder
 proj = matlab.project.rootProject;
 rootFolder = proj.RootFolder;
 

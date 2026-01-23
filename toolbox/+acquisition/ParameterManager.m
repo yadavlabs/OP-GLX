@@ -11,14 +11,6 @@ classdef ParameterManager < dynamicprops
     % parameters (though this improvement might not actually be that
     % impactful and will just make things a bit more readable).
     
-    % properties
-    %     %paramStruct struct % parameter structure, use after
-    %     % initialized
-    %     % address
-    %     % NP = struct
-    %     % NI = struct
-    %     % OP = struct
-    % end
     properties %(Access = private)
         paramPath
         paramFields
