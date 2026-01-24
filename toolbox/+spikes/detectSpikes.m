@@ -11,6 +11,13 @@ end
 %spike_mask = data < -opts.threshold * s_est;% & data > -8 * s_est;
 threshold_estimate = -opts.threshold * opts.estimationFcn(data);
 spike_mask = data < threshold_estimate;
+
+
+% remove detected "spikes" that occur on more than 5% of channels at the same time 
+artifact_estimate = sum(spike_mask,2)>0.05*size(data,2);
+artifact_mask = conv(artifact_estimate, ones(20, 1), 'same') > 0;
+spike_mask(artifact_mask,:) = false;
+
 % slow using movsum (~200-250ms for 82500x384 array)
 % tic
 % stay_below = movsum(spike_mask, params.OP.stay_below_cnt) == params.OP.stay_below_cnt;
@@ -23,5 +30,9 @@ spike_mask = data < threshold_estimate;
 % scans rows of data_uV with a vector of ones to find locations that result in stay_below_cnt
 stay_below = conv2(spike_mask, ones(opts.stay_below_cnt,1)) == opts.stay_below_cnt;
 [spike_times, spike_chans] = find(diff(stay_below) == 1);
+
+%stay_below = diff(conv2(spike_mask, ones(opts.stay_below_cnt,1)) == opts.stay_below_cnt) == 1;
+
+
 
 end

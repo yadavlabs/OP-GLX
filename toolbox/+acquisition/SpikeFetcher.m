@@ -1,35 +1,35 @@
 classdef SpikeFetcher < handle
-        % SpikeFetcher Class
-        % This class is designed to fetch and process data from SpikeGLX stream buffers.
-        % It allows for continuous or event-based data fetching and provides methods
-        % for handling the fetched data, including buffering and processing.
-        %
-        % Usage:
-        %   fetcher = SpikeFetcher(opts)
-        %   fetcher.start(fetchType, opts)
-        %
-        % Properties:
-        %   hSGL - SpikeGLX client object for data acquisition
-        %   s0_np - Sample count for neural data acquisition
-        %   s0_ni - Sample count for event data acquisition
-        %   bufferData - Buffer for storing fetched data
-        %   bufferSampleCnt - Current number of samples in the buffer
-        %   data_uV - Processed data window from the buffer
-        %   fetchTimer - Timer object for managing data fetching
-        %   fetchType - Type of fetching ('Continuous' or 'Event')
-        %   isAcquiring - Flag indicating if data fetching is active
-        %   isEvent - Flag indicating if the current fetch is event-based
-        %   dropSamples - Flag to determine if samples should be dropped
-        %   hParams - Parameter handle containing acquisition parameters
-        %
-        % Methods:
-        %   setupTimer() - Configures the timer for fetching data
-        %   start(fetchType, opts) - Initiates data fetching based on the specified type
-        %   handleFetchTimerError() - Handles errors that occur during fetching
-        %   initializeBuffer() - Prepares the buffer for data storage
-        %   ensureConnection() - Checks and ensures a valid connection to SpikeGLX
-        %   fetchChunk() - Fetches a chunk of data from the stream
-        %   processFetchedData() - Processes the fetched data for further analysis
+% SpikeFetcher Class
+% This class is designed to fetch and process data from SpikeGLX stream buffers.
+% It allows for continuous or event-based data fetching and provides methods
+% for handling the fetched data, including buffering and processing.
+%
+% Usage:
+%   fetcher = SpikeFetcher(opts)
+%   fetcher.start(fetchType, opts)
+%
+% Properties:
+%   hSGL - SpikeGLX client object for data acquisition
+%   s0_np - Sample count for neural data acquisition
+%   s0_ni - Sample count for event data acquisition
+%   bufferData - Buffer for storing fetched data
+%   bufferSampleCnt - Current number of samples in the buffer
+%   data_uV - Processed data window from the buffer
+%   fetchTimer - Timer object for managing data fetching
+%   fetchType - Type of fetching ('Continuous' or 'Event')
+%   isAcquiring - Flag indicating if data fetching is active
+%   isEvent - Flag indicating if the current fetch is event-based
+%   dropSamples - Flag to determine if samples should be dropped
+%   hParams - Parameter handle containing acquisition parameters
+%
+% Methods:
+%   setupTimer() - Configures the timer for fetching data
+%   start(fetchType, opts) - Initiates data fetching based on the specified type
+%   handleFetchTimerError() - Handles errors that occur during fetching
+%   initializeBuffer() - Prepares the buffer for data storage
+%   ensureConnection() - Checks and ensures a valid connection to SpikeGLX
+%   fetchChunk() - Fetches a chunk of data from the stream
+%   processFetchedData() - Processes the fetched data for further analysis
     % SPIKEFETCHER Summary of SpikeFetcher
     %   Class for fetching incoming data from SpikeGLX stream buffers and
     %   processing the data based on a specified time window.
@@ -143,15 +143,22 @@ classdef SpikeFetcher < handle
             if ~isfield(opts, "plotFcn")
                 plotStructs = plotting.generateStandalonePlots(obj.hParams);
                 obj.plotFcn = @(result)plotting.plotResult(plotStructs, result);
+            else
+                obj.plotFcn = opts.plotFcn;
             end
 
             if ~isfield(opts, "timerDisplayFcn")
 
                 obj.timerDisplayUpdateFcn = plotting.generateAcquisitionTimeDisplay;
+            else
+                obj.timerDisplayUpdateFcn = opts.timerDisplayFcn;
             end
             
             if ~isfield(opts, "fetchErrorFcn")
+              
                 obj.fetchErrorFcn = @obj.handleFetchTimerError;
+            else
+                obj.fetchErrorFcn = opts.fetchErrorFcn;
             end
             
             
@@ -222,7 +229,7 @@ classdef SpikeFetcher < handle
                 case 'Continuous'
                     obj.fetchTimer.TimerFcn = @obj.fetchChunk;
                     obj.fetchTimer.Period = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
-                    %obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
+                    obj.fetchTimer.StartDelay = obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction;
 
                     obj.s0_np = GetStreamSampleCount(obj.hSGL, obj.hParams.NP.js, obj.hParams.NP.ip);
                     start(obj.fetchTimer)
@@ -357,8 +364,7 @@ classdef SpikeFetcher < handle
                 return;
             end
             
-            % update timer display (may not work) -> it does work (JS 6/18/25)
-            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
+            
             % fetch data
             try %attempt to fetch
                 [data, ~] = Fetch(obj.hSGL, ...
@@ -414,6 +420,9 @@ classdef SpikeFetcher < handle
                     obj.stop();
                 end
             end
+            % update timer display (may not work) -> it does work (JS 6/18/25)
+            obj.timerDisplayUpdateFcn(obj.s0_np / obj.hParams.NP.fs);
+
             
 
         end

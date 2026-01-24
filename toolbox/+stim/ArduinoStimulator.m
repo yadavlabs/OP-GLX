@@ -71,6 +71,9 @@ classdef ArduinoStimulator < stim.StimulationInterface
             end
             
             try
+                if isempty(obj.port)
+                    return;
+                end
                 obj.serObj = serialport(obj.port, obj.baudrate);
                 configureTerminator(obj.serObj, "CR/LF")
                 flush(obj.serObj)
