@@ -1,4 +1,5 @@
-function sigma = madEstimation(X)
+function sigma = fcn(X)
+%% madEstimation
 %% Computes median absolute deviation estimation for spike detection
 % Input:
 %   X - NxM array where N is the number of samples and M is the number of channels
