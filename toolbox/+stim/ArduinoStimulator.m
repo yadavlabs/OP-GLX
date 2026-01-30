@@ -107,7 +107,6 @@ classdef ArduinoStimulator < stim.StimulationInterface
             if ~obj.isInitialized
                 return;
             end
-            disp('here')
             writeline(obj.serObj, 'S')
         end
 

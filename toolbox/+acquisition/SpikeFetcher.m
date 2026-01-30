@@ -382,7 +382,7 @@ classdef SpikeFetcher < handle
                         round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
 
                     drop_samps = new_s0 - obj.s0_np;
-                    obj.displayInfoFcn(utils.formatMessage(opxgl.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
+                    obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
                     % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     % %write(obj.buffer, zero_pad);
                     % %obj.bufferData = [obj.bufferData; zero_pad];
@@ -438,6 +438,13 @@ classdef SpikeFetcher < handle
 
         end
 
+        function processCurrentData(obj)
+            fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
+            params = obj.hParams.toStruct();
+            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
+            afterEach(obj.Future, obj.plotFcn, 0);
+        end
+
         function fetchChunkWithMetrics(obj, ~, ~)
             %%
             
@@ -483,7 +490,7 @@ classdef SpikeFetcher < handle
                         round((obj.hParams.OP.window_len * obj.hParams.OP.fetch_fraction) * obj.hParams.NP.fs);
                     
                     drop_samps = new_s0 - obj.s0_np;
-                    obj.displayInfoFcn(utils.formatMessage(opgxl.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
+                    obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID,['Dropped samples: ' num2str(drop_samps)]))
                     % zero_pad = zeros(drop_samps, obj.hParams.NP.num_chans);
                     % write(obj.buffer, zero_pad);
                     % 

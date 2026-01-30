@@ -2,7 +2,7 @@ function fcnStruct = validateEstimationFunctions()
 %VALIDATEESTIMATIONFUNCTIONS Summary of this function goes here
 %   Detailed explanation goes here
 
-fileStruct = what("threshold");
+fileStruct = what(fullfile(opglx.constants.TOOLBOXNAME, "toolbox", "+threshold"));
 
 fcnStruct = struct("SD", @std); %default, always provide built-in standard deviation
 if ~isempty(fileStruct.packages)
