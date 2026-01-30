@@ -46,6 +46,7 @@ classdef SpikeFetcher < handle
         bufferData % Buffer for appending fetched data
         bufferSampleCnt % Number of samples in buffer (length of bufferData)
         data_uV % Windowed data from bufferData to be processed (specified by hParams.OP.window_samples)
+        %zf
         buffer
         % raw stream
         %dataRaw_uV
@@ -112,6 +113,7 @@ classdef SpikeFetcher < handle
         EventFetched
         EventNotFound
         FetchStopped
+        ServerError
     end
     
     methods (Access = public)
@@ -206,11 +208,14 @@ classdef SpikeFetcher < handle
             if ~flag % return if SpikeGLX connection errors
                 obj.isAcquiring = false;
                 obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID, 'Spike-GLX connection error.'))
+                notify(obj, "ServerError")
                 return
             end
             if ~IsRunning(obj.hSGL) % return if data is not being acquired
                 obj.isAcquiring = false;
+                obj.displayInfoFcn(utils.formatMessage(opglx.constants.FETCHERID, 'SpikeGLX not acquiring data.'))
                 msg = 'SpikeGLX not acquiring data.';
+
                 return
             end
             

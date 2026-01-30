@@ -100,6 +100,26 @@ classdef ParameterManager < dynamicprops
 
 
         end
+        function updateFilter(obj, opts)
+            arguments
+                obj acquisition.ParameterManager
+                opts.fcL
+                opts.fcH
+                opts.n
+            end
+            if ~obj.initialized
+                return
+            end
+            for fn = string(fieldnames(opts))'
+                obj.OP.filter.(fn) = opts.(fn);
+            end
+            [obj.OP.filter.b, obj.OP.filter.a] = butter(obj.OP.filter.n, ...
+                [obj.OP.filter.fcL obj.OP.filter.fcH]/(obj.NP.fs/2));
+
+            % [params.OP.filter.b, params.OP.filter.a] = butter(params.OP.filter.n, ...
+            %     [params.OP.filter.fcL params.OP.filter.fcH]/(params.NP.fs/2));
+
+        end
         % function val = getField(obj, field)
         %     val = obj.p.(field);
         % end

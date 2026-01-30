@@ -16,7 +16,7 @@ params.NP.i16uVmult = []; % multiplier for converting 16-bit channel data to mic
 % When used as input to Fetch/Fetch latest, returned data is ordered
 % 0:1:383 and must be remapped appropriately, 
 % e.g. -> params.chan_order(spike_chans)
-params.NP.chans =  0:383;%[0:2:383, 1:2:383]; %0:120;
+params.NP.chans =  [0:2:383, 1:2:383]; %0:120; %0:383
 [~, params.NP.chan_order] = sort(params.NP.chans);
 params.NP.num_chans = length(params.NP.chans); % number of channels
 params.NP.cmap = cool(length(params.NP.chans)); % colormap for channels (may update this based on anatomy/brain regions of channels)
@@ -98,6 +98,7 @@ params.OP.filter.fcH = 9000; % high cutoff, Hz
 params.OP.filter.n = 4; % filter order
 params.OP.filter.b = []; % transfer function coefficients to be sent once NP.fs is filled
 params.OP.filter.a = []; % ->[params.OP.b, params.OP.a] = butter(params.OP.n, [params.OP.fcL params.OP.fcH]/(params.NP.fs/2));
+params.OP.filter.zf = []; % final conditions of filter() output used as input for next pass (not sure this should be stored here)
 params.OP.filter.apply = false;
 
 end
