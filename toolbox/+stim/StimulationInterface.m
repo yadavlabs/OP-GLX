@@ -3,12 +3,14 @@ classdef StimulationInterface < handle
     properties
         stimulationParameters
     end
+    
     properties (SetObservable)
         StatusMessage
     end
 
     events
-        Initialized
+        InitializationSuccess
+        InitializationError
         StimulusDelivered
         StimulationError
         ConnectionChanged
