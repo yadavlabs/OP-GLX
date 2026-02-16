@@ -21,7 +21,7 @@ classdef XippmexStimulator < stim.StimulationInterface
         ampResVal = [] % amplitude step resolution (uA/step)
         ampRes = [] % index of ampliduteResVal from ampResValList
         
-        ampResValList = [10 20 50 100 200]
+        ampResValList = [1 2 5 10 20]
         ampResList = [1 2 3 4 5]
 
         
@@ -30,9 +30,15 @@ classdef XippmexStimulator < stim.StimulationInterface
     properties (Access = private)
         defaultStimulationParameters = struct("anode", 16, "cathode", 1, ...
                 "sequential", false, "frequency", 50,"duration", 200, ...
-                "amplitude", 200, "train_length", 2, "step", 100)
+                "amplitude", 200, "train_length", 2, "step", 2, ...
+                "amplitude_cathode", 200, "amplitude_anode", 200);
 
         stimTimer
+    end
+
+    events
+        AmplitudeCorrected
+        AmplitudeDistributed
     end
 
 
@@ -116,7 +122,7 @@ classdef XippmexStimulator < stim.StimulationInterface
             obj.StatusMessage = "Stimulator initialized successfully.";
             notify(obj, "InitializationSuccess")
 
-            enableRecording(obj);
+            %enableRecording(obj);
             updateAmplitudeResolution(obj, obj.stimulationParameters.step)
 
         end
@@ -141,8 +147,25 @@ classdef XippmexStimulator < stim.StimulationInterface
                 end
             end
             obj.stimTimer.StartDelay = obj.stimulationParameters.train_length;
-            obj.stimulationCommand = stim.generateSpatiotemporalPattern(obj.stimulationParameters);
+            [obj.stimulationCommand, amp_info] = stim.generateStimulationCommand(obj.stimulationParameters);
             %obj.stimulationCommand;
+            if ~amp_info.validInput
+                obj.stimulationParameters.amplitude = amp_info.ampValid;
+                
+                %obj.stimulationParameters.amplitude_anode] = deal(obj.stimulationParameters.amplitude);
+                obj.StatusMessage = sprintf('Amplitude corrected to %d uA', amp_info.ampValid);
+                notify(obj, "AmplitudeCorrected");
+            end
+            if ~obj.stimulationParameters.sequential
+                obj.StatusMessage = sprintf('Cathode amplitude set to %d uA', amp_info.ampCathode);
+                obj.StatusMessage = sprintf('Anode amplitude set to %d uA', amp_info.ampAnode);
+                obj.stimulationParameters.amplitude_cathode = amp_info.ampCathode;
+                obj.stimulationParameters.amplitude_anode = amp_info.ampAnode;
+                notify(obj, "AmplitudeDistributed");
+                
+            else
+                [obj.stimulationParameters.amplitude_cathode, obj.stimulationParameters.amplitude_anode] = deal(obj.stimulationParameters.amplitude);
+            end
             obj.StatusMessage = "Parameters updated.";
             %obj.StatusMessage = sprintf('Cathodes: %s', strjoin(string(obj.stimulationParameters.cathode), ', '));
             %obj.StatusMessage = sprintf('Anodes: %s', strjoin(string(obj.stimulationParameters.anode), ', '));
@@ -234,7 +257,8 @@ classdef XippmexStimulator < stim.StimulationInterface
             obj.ampRes = new_res;
             obj.ampResVal = new_res_val;
             obj.stimulationParameters.step = new_res_val;
-            obj.stimulationCommand = stim.generateSpatiotemporalPattern(obj.stimulationParameters);
+            %obj.stimulationCommand = stim.generateSpatiotemporalPattern(obj.stimulationParameters);
+            [obj.stimulationChannels, amp_valid] = stim.generateStimulationCommand(obj.stimulationParameters);
             obj.StatusMessage = "Amplitude resolution set to: " + obj.ampResVal + "uA";
 
 
