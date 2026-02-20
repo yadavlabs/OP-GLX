@@ -18,11 +18,13 @@ end
 
 
 q = Nc * Na * s; % number of cathodes, number of anodes, step size must be factors of amplitude
-m = round(amplitude / (Nc * Na * s)); % round off to guarantee above constraint
+r = amplitude / q;
+
+m = round(amplitude / (q)); % round off to guarantee above constraint
 I_valid = m * q; % corrected valid amplitdue (will be the same as amplitude if m is an integer before rounding)
 
-kc = m * Nc; % quantized amplitude for cathodes
-ka = m * Na; % quantized amplitude for anodes
+kc = m * Na; % quantized amplitude for cathodes
+ka = m * Nc; % quantized amplitude for anodes
 
 Ic = kc * s; % cathode amplitude (uA)
 Ia = ka * s; % anode amplitude (uA)

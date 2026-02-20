@@ -1,4 +1,4 @@
-function [cmd_out, ampValid] = generateStimulationCommand(params)
+function [cmd_out, ampInfo] = generateStimulationCommand(params)
 %GENERATESTIMULATIONCOMMAND Summary of this function goes here
 %   Detailed explanation goes here
 % arguments (Input)
@@ -37,7 +37,7 @@ for i = 1:numel(schedule)
     aNc = numel(activeCathode);
     aNa = numel(activeAnode);
 
-    [ampQuantC, ampQuantA, ampValid] = stim.quantizeAmplitude(params.amplitude, aNc, aNa, params.step);
+    [ampQuantC, ampQuantA, ampValid, ampC, ampA] = stim.quantizeAmplitude(params.amplitude, aNc, aNa, params.step);
 
     repeats = schedule(i).repeats;
     action = schedule(i).action;
@@ -55,7 +55,7 @@ for i = 1:numel(schedule)
     
 
     for n = 1:aNa
-        idx = aNa + n;
+        idx = aNc + n;
         cmdTemp(idx).elec = activeAnode(n);
         cmdTemp(idx).period = period;
         cmdTemp(idx).repeats = repeats;
@@ -63,8 +63,13 @@ for i = 1:numel(schedule)
         cmdTemp(idx).seq = buildBiphasicSequence(durCC, ampQuantA, 1, false);
     end
     cmd_out{i} = cmdTemp;
+    
 
 end
+ampInfo.validInput = isequal(params.amplitude, ampValid);
+ampInfo.ampValid = ampValid;
+ampInfo.ampCathode = ampC;
+ampInfo.ampAnode = ampA;
 
 end
 %% helpers
@@ -77,6 +82,7 @@ seqFlag = ~isfield(params, "sequential") || params.sequential;
 if seqFlag 
     % active electrodes change over train length duration 
     % (and for simplest bipolar pair case)
+    
     schedule = struct("anodes", cell(1, Nc), "cathodes", [], ...
         "repeats", [], "action", []);
     
@@ -101,10 +107,11 @@ if seqFlag
 
     else % single anode-cathode pair
         schedule.anodes = params.anode;
-        schedule.cathode = params.cathode;
+        schedule.cathodes = params.cathode;
     end
 
 else
+    
     schedule = struct("anodes", [], "cathodes", [], ...
         "repeats", [], "action", []);
     schedule.anodes = params.anode;
