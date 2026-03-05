@@ -37,3 +37,11 @@
 % Local MATLAB/Simulink tool caches
 **/slprj
 **/.buildtool/
+
+% specific files to exclude (mainly development stuff)
+**/apps/opglx_integrated_fetch.mlapp
+**/apps/OnlineOptimizerApp.mlapp
+**/+acquisition/ParameterWrapper.m
+**/+plotting/shadedErrorBarFast.m
+**/+utils/convertToDisplayName.m
+**/+utils/getPackageFunctions.m

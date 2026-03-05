@@ -673,9 +673,9 @@ classdef SpikeFetcher < handle
             obj.fetchCnt = 1;
             if ~isfield(opts, "testParams")
                 obj.testParams = struct("test_length", 600, ...%30, ...
-                                        "window_lengths", [0.25], ...%[0.25, 0.5, 0.75, 1], ...
+                                        "window_lengths", [0.25, 0.5, 0.75, 1], ... %[0.25], ...
                                         "fetch_fractions", [0.1, 0.25, 0.5, 0.75, 1], ...
-                                        "fetch_lengths", [0.05], ...%[0.05, 0.1, 0.15, 0.2, 0.25], ...
+                                        "fetch_lengths", [0.05, 0.1, 0.15, 0.2, 0.25], ... %[0.05], ...%
                                         "wl_cnt", 1, ...
                                         "ff_cnt", 1, ...
                                         "fl_cnt", 1);
@@ -743,15 +743,19 @@ classdef SpikeFetcher < handle
             obj.initializeMetricsBlock();
 
             [flag, msg] = obj.ensureConnection();
+            
             if ~flag % return if SpikeGLX connection errors
                 obj.isAcquiring = false;
+                obj.displayInfoFcn(msg);
                 return
             end
             if ~IsRunning(obj.hSGL) % return if data is not being acquired
                 obj.isAcquiring = false;
                 msg = 'SpikeGLX not acquiring data.';
+                obj.displayInfoFcn(msg);
                 return
             end
+            
             obj.isAcquiring = true;
             obj.cleanupBuffer();
             obj.initializeBuffer();
