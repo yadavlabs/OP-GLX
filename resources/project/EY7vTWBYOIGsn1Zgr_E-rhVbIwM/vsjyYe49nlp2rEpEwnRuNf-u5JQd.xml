@@ -3,10 +3,10 @@
     <Category UUID="FileClassCategory">
         <Label UUID="design"/>
     </Category>
-    <Category UUID="Deployment_Category_c11f75cc-309f-423a-bd80-173662924867">
-        <Label UUID="Deployment_ToolboxAppGalleryFiles_c11f75cc-309f-423a-bd80-173662924867"/>
-    </Category>
     <Category UUID="Deployment_Category_d3ebe60c-27a4-4185-bfa7-175d3b328aa8">
         <Label UUID="Deployment_ToolboxAppGalleryFiles_d3ebe60c-27a4-4185-bfa7-175d3b328aa8"/>
+    </Category>
+    <Category UUID="Deployment_Category_c11f75cc-309f-423a-bd80-173662924867">
+        <Label UUID="Deployment_ToolboxAppGalleryFiles_c11f75cc-309f-423a-bd80-173662924867"/>
     </Category>
 </Info>
