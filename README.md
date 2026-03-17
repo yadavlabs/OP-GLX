@@ -50,4 +50,9 @@ Development of the toolbox utilizes MATLAB projects.
 2. With MATLAB open, in the `HOME` tab, click the `Open` option.
 3. Navigate to the location of the clone repository and open `OP-GLX.prj`. 
 4. Source control can be done within MATLAB in the `PROJECT` tab or using Git.
-### 
+
+## Citing
+
+Accompanying paper is available on [bioRxiv](https://www.biorxiv.org/content/10.64898/2026.03.04.709636v1)
+
+J. C. Slack, G. Rutledge, and A. P. Yadav, “OP-GLX: A MATLAB Toolbox for Online Processing and Plotting of Neuropixels Data Acquired with SpikeGLX,” Mar. 06, 2026, Neuroscience. doi: 10.64898/2026.03.04.709636.
