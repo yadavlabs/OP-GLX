@@ -159,7 +159,8 @@ classdef ArduinoStimulator < stim.StimulationInterface
                     obj.isInitialized = true;
                     obj.StatusMessage = "Connection initialization successful.";
                     obj.updateParameters(obj.stimulationParameters)
-                    notify(obj, "Initialized")
+                    %notify(obj, "Initialized")
+                    notify(obj, "InitializationSuccess")
                 
                 % case "ParameterUpdated"
                 %     obj.StatusMessage = sprintf('%s set to %s', data(2), data(3));
