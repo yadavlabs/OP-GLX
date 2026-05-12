@@ -14,6 +14,12 @@ classdef ParameterManager < dynamicprops
     properties %(Access = private)
         paramPath
         paramFields
+        
+    end
+    properties (Access = private)
+        validEstimationFcns
+        validDetectionFcns
+        
     end
 
     events
@@ -38,11 +44,49 @@ classdef ParameterManager < dynamicprops
                 obj.addprop(field);
                 obj.(field) = parameterStruct.(field);
             end
+            if isfield(parameterStruct.OP, "estimationFcnList")
+                obj.validEstimationFcns = fieldnames(obj.OP.estimationFcnList);
+            end
+            if isfield(parameterStruct.OP, "detectionFcnList")
+                obj.validDetectionFcns = fieldnames(obj.OP.detectionFcnList);
+            end
                 
         end
         
         function msg = initialize(obj)
             [~, msg] = acquisition.initializeParameters(obj);
+        end
+
+        function updateDetectionMethod(obj, value)
+            if ~ismember(value, obj.validDetectionFcns)
+                error('Invalid Spike Detection function.')
+            end
+            obj.OP.detection_method = value;
+            obj.OP.detectionFcn = obj.OP.detectionFcnList.(value);
+            obj.OP.detection_params = [];
+            for fn = obj.OP.detectionFcnArgsList.(obj.OP.detection_method)
+                obj.OP.detection_params.(fn) = obj.OP.(fn);
+            end
+            obj.OP.detection_params = namedargs2cell(obj.OP.detection_params);
+        end
+
+        function updateDetectionParameter(obj, paramName, value)
+            if ~isfield(obj.OP, paramName)
+                return;
+            end
+            obj.OP.(paramName) = value;
+            if ~ismember(paramName, obj.OP.detectionFcnArgsList.(obj.OP.detection_method))
+                return;
+            end
+            
+            loc = 2 * find(ismember(obj.OP.detection_params(1:2:end), paramName)) - 1;
+            obj.OP.detection_params{loc+1} = value;
+
+            %obj.OP.detection_params{loc+1} = value;
+            
+
+            
+
         end
 
         function updateWindowLength(obj, value)
@@ -92,9 +136,13 @@ classdef ParameterManager < dynamicprops
             if ~obj.initialized
                 return
             end
-            obj.OP.max_bins = obj.OP.window_samples / obj.OP.bin_samples;
+
+            obj.OP.max_bins = ceil(obj.OP.window_samples / obj.OP.bin_samples);
             obj.OP.time_ms = ((0:obj.OP.window_samples-1) - obj.OP.prestim_samples) / round(obj.NP.fs) * 1000;
             obj.OP.bin_edges = obj.OP.time_ms(1):obj.OP.bin_size*10^3:(obj.OP.time_ms(end)+10^3/round(obj.NP.fs));
+            if obj.OP.bin_edges(end) < obj.OP.time_ms(end)
+                obj.OP.bin_edges(end+1) = obj.OP.bin_edges(end) + obj.OP.bin_size * 1000;
+            end
             obj.OP.bin_centers = obj.OP.bin_edges(2:end) - obj.OP.bin_size*10^3/2;
             
 

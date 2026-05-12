@@ -87,8 +87,22 @@ params.OP.estimationFcnList = utils.validateEstimationFunctions();
 % );
 params.OP.estimation_method = "MAD_ZM";
 params.OP.estimationFcn = params.OP.estimationFcnList.(params.OP.estimation_method);
-params.OP.threshold = 3;
+
+[params.OP.detectionFcnList, params.OP.detectionFcnArgsList] = utils.validateDetectionFunctions();
+params.OP.detection_method = "Default";
+params.OP.detectionFcn = params.OP.detectionFcnList.(params.OP.detection_method);
+
+
+
+params.OP.threshold = 4;
 params.OP.stay_below_cnt = 3;
+params.OP.artifact_percent = 0.2; %fraction of channels required for artifact to be present
+params.OP.align_window = 15; % look-ahead window for finding minima
+params.OP.bridge_gap = 1; % fill in gaps in consecutive threshold crossings
+for fn = params.OP.detectionFcnArgsList.(params.OP.detection_method)
+    params.OP.detection_params.(fn) = params.OP.(fn);
+end
+params.OP.detection_params = namedargs2cell(params.OP.detection_params);
 
 params.OP.wv_samples = 64; % number of samples for viewing spike waveforms
 
