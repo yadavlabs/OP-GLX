@@ -16,6 +16,6 @@ y = params.NP.chan_order(spike_chans) - 1;
 x_coords = [x(:)'; x(:)'; nan(size(x(:)'))];
 y_coords = [y(:)' + 0.5; y(:)' - 0.5; nan(size(y(:)'))];
 
-result = {x_coords(:), y_coords(:), 'raster'};
+result = {x_coords(:), y_coords(:), 'rasterSpikes'};
 
 end

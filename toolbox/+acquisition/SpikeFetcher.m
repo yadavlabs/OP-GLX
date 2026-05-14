@@ -46,6 +46,7 @@ classdef SpikeFetcher < handle
         bufferData % Buffer for appending fetched data
         bufferSampleCnt % Number of samples in buffer (length of bufferData)
         data_uV % Windowed data from bufferData to be processed (specified by hParams.OP.window_samples)
+        dataRaw
         %zf
         buffer
         % raw stream
@@ -446,7 +447,7 @@ classdef SpikeFetcher < handle
         function processCurrentData(obj)
             fcn = str2func(['spikes.' obj.hParams.OP.plotType]);
             params = obj.hParams.toStruct();
-            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV, params);
+            obj.Future = parfeval(obj.thPool, fcn, 1, obj.data_uV(1:params.OP.window_samples,:), params);
             afterEach(obj.Future, obj.plotFcn, 0);
         end
 
@@ -632,10 +633,32 @@ classdef SpikeFetcher < handle
         end
 
         function initializeBuffer(obj)
+            %% initializes async buffer for storing fetched data
             obj.buffer = dsp.AsyncBuffer(obj.hParams.OP.window_samples*2);
             write(obj.buffer, ...
                 zeros(round(obj.hParams.OP.window_samples * obj.hParams.OP.fetch_fraction),obj.hParams.NP.num_chans));
             read(obj.buffer, obj.buffer.NumUnreadSamples);
+            
+            % 5/13/2026 testing it out but have secondary buffer for storing raw data
+            % not sure if this is worth the potential performance loss
+            % Am realizing this may require further reworking so will hold
+            % off for now. The options are:
+            % 1) Always fetch from both raw and filtered streams and store
+            %    in two seperate buffers
+            % 2) (Current behavior) Fetch from one stream based on hParams.NP.js_filtered
+            %    and store in single buffer. 
+            % 3) 
+            % 
+            % 
+            % Issue with 2): 
+            %    I just realized the likelihood of the buffer containing data from both the 
+            %    filtered and raw streams when hParams.NP.js_filtered is
+            %    changed. This can result in data being sent for processing
+            %    containing both raw and filtered streams. This would only
+            %    happen the first time the buffer is filled following a
+            %    change in hParams.NP.js_filtered. After that, the buffer
+            %    would only contain data from the stream selected by hParams.NP.js_filtered
+
         end
 
         function cleanupBuffer(obj)

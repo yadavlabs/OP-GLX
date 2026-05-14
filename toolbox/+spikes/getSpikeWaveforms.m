@@ -36,5 +36,5 @@ wv_var = ((spike_waveforms.^2) * chan_selector.') ./ max(spike_counts, 1) - wv_a
 wv_std = sqrt(max(wv_var, 0));
 
 %% results
-result = {data, spike_times, spike_chans, threshold_estimate, spike_waveforms, wv_avg, wv_std, params, 'waveform'};
+result = {data, spike_times, spike_chans, threshold_estimate, spike_waveforms, wv_avg, wv_std, params, 'getSpikeWaveforms'};
 end

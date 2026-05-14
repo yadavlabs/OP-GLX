@@ -10,10 +10,20 @@ else
         msg = 'SpikeGLX not acquiring data.';
     else
         %% set NP params
+
+        res = GetParamsImecProbe(hSGL, 0);
+        [params.NP.chans, params.NP.num_chans, params.NP.chan_order, plot_params] = acquisition.readIMRO(res.imroFile);
+        for f = string(fieldnames(plot_params))'
+            params.NP.(f) = plot_params.(f);
+        end
+        %params.NP.cmap = plot_params.cmap;
         params.NP.fs = GetStreamSampleRate(hSGL, params.NP.js, params.NP.ip);
         params.NP.i16uVmult = GetStreamI16ToVolts(hSGL, params.NP.js, params.NP.ip, params.NP.chans)*10^6;
         params.NP.sync_samples = round(params.OP.sync_len * params.NP.fs);
-
+        
+        % reads IMRO file (or default NP1 file) to set channel ordering
+        % based on banks of probe
+        
         %% set NI params
         if GetParams(hSGL).niEnabled
             params.NI.enabled = true;

@@ -11,19 +11,23 @@ if ~isfolder(newRoot)
 end
 oldPaths = opglx.ensureUserPaths("displayFcn", opts.displayFcn);
 
-setpref(opglx.constants.PREFGROUP, 'UserRoot', newRoot)
-opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('Old directory: %s', oldPaths.root)))
-opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('New directory: %s', newRoot)))
+
 %opts.displayFcn(sprintf('[%s] Old directory: %s', opglx.constants.TOOLBOXNAME, oldPaths.root))
 %opts.displayFcn(sprintf('[%s] New directory: %s', opglx.constants.TOOLBOXNAME, newRoot))
-newPaths = opglx.ensureUserPaths("displayFcn", opts.displayFcn);
+
 
 %opts.displayFcn(sprintf('[%s] Moving files...', opglx.constants.TOOLBOXNAME))
+
 opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, 'Moving files...'))
-[status, msg] = movefile(oldPaths.root, newPaths.root);
+[status, msg] = movefile(fullfile(oldPaths.root, '*'), newRoot);
 if status
     %opts.displayFcn(sprintf('[%s] Success.', opglx.constants.TOOLBOXNAME))
+    setpref(opglx.constants.PREFGROUP, 'UserRoot', newRoot)
+    opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('Old directory: %s', oldPaths.root)))
+    opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('New directory: %s', newRoot)))
     opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, 'Success'))
+    opglx.ensureUserPaths("displayFcn", opts.displayFcn);
+    rmdir(oldPaths.root)
 else
     opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, 'An issue occurred while moving files:'))
     opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, msg))

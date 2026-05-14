@@ -13,6 +13,7 @@ paths = struct();
 paths.root = root;
 paths.params = fullfile(root, 'params');
 paths.logs = fullfile(root, 'logs');
+paths.figures = fullfile(root, 'figures');
 
 end
 

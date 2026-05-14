@@ -16,11 +16,16 @@ params.NP.i16uVmult = []; % multiplier for converting 16-bit channel data to mic
 % When used as input to Fetch/Fetch latest, returned data is ordered
 % 0:1:383 and must be remapped appropriately, 
 % e.g. -> params.chan_order(spike_chans)
+
+% -- this block is now assigned in initializeParameters by parsing IMRO table files
 params.NP.chans =  [0:2:383, 1:2:383]; %0:120; %0:383
 [~, params.NP.chan_order] = sort(params.NP.chans);
 params.NP.num_chans = length(params.NP.chans); % number of channels
 params.NP.cmap = cool(length(params.NP.chans)); % colormap for channels (may update this based on anatomy/brain regions of channels)
- 
+params.NP.chan_ticks = [];
+params.NP.chan_tick_labels = [];
+% --
+
 params.NP.plot_chans = [0, 1]; % use zero indexes based on params.NP.chans, currently only 2 channels are plotted, could increase this. Or instead of channels, do clusters from spike sorting
 params.NP.plot_chan_inds = params.NP.plot_chans + 1; % index in fetched data corresponding to zero-indexed channel
 params.NP.chan_sy = 768; % sync channel for NP and NI streams

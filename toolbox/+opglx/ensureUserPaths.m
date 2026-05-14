@@ -10,7 +10,14 @@ paths = opglx.getUserPaths();
 if isempty(paths)
     return;
 end
-fns = string(fieldnames(paths))';
+
+if ~isfolder(paths.root)
+    mkdir(paths.root);
+    opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('User directory created: %s', paths.root)))
+else
+    opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('User directory location: %s', paths.root)))
+end
+fns = string(fieldnames(rmfield(paths, "root")))';
 
 for fn = fns
     p = paths.(fn);
@@ -18,6 +25,7 @@ for fn = fns
         mkdir(p);
         opts.displayFcn(utils.formatMessage(opglx.constants.TOOLBOXNAME, sprintf('%s directory created: %s', fn, p)))
         %opts.displayFcn(sprintf('[%] %s directory created: %s\n', opglx.constants.TOOLBOXNAME, fn, p))
+        
     end
 end
 
