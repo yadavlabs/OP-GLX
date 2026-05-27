@@ -18,6 +18,8 @@ axRaster.XLabel.String = "Time (msec)";
 axRaster.YLabel.String = "Channels";
 axRaster.XLim = time_xlims;
 axRaster.YLim = [min(params.NP.chans) - 0.5, max(params.NP.chans) + 0.5];
+axRaster.YTick = params.NP.chan_ticks;
+axRaster.YTickLabel = params.NP.chan_tick_labels;
 axRaster.TickLength = [0,0];
 
 hStimStartLine = xline(axRaster, 0, "Color", [0.39,0.83,0.07], "LineWidth", 2, "LineStyle", "--");

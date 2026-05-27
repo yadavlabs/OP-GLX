@@ -5,23 +5,31 @@ tag = result{end};
 params = result{end-1};
 switch tag
 
-    case 'raster'
+    case 'rasterSpikes'
         set(plotStructs.(tag).hRaster, "XData", result{1}, "YData", result{2})
         drawnow
 
-    case 'waveform'
+    case 'getSpikeWaveforms'
         for i = 1:length(params.NP.plot_chan_inds)
 
             chan = params.NP.plot_chan_inds(i);
             set(plotStructs.(tag).hAPStreams(i), "XData", params.OP.time_ms, "YData", result{1}(:, chan))
-            set(plotStructs.(tag).hAPStreamSpikes(i), ...
+            set(plotStructs.(tag).hAPSpikes(i), ...
                 "XData", params.OP.time_ms(result{2}(result{3}==chan)), ...
                 "YData", result{1}(result{2}(result{3}==chan), chan));
 
+            % set(plotStructs.(tag).hWaveforms(i), ...
+            %     "XData", 1:params.OP.wv_samples, ...
+            %     "YData", mean(result{5}(:, result{3}==chan), 2))
             set(plotStructs.(tag).hWaveforms(i), ...
                 "XData", 1:params.OP.wv_samples, ...
-                "YData", mean(result{5}(:, result{3}==chan), 2))
+                "YData", result{6}(:, chan))
 
+            [yP, lE, uE] = plotting.calculateErrorPatchValues(result{6}(:, chan), result{7}(:, chan));
+            set(plotStructs.(tag).hWaveErr(i).hPatch, "YData", yP)
+
+            set(plotStructs.(tag).hWaveErr(i).hEdge, "YData", [lE NaN uE])
+            drawnow
         end
         % chanA = params.NP.plot_chan_inds(1);
         % chanB = params.NP.plot_chan_inds(2);
@@ -43,7 +51,7 @@ switch tag
 
         drawnow
 
-    case 'pca'
+    case 'pcaSpikes'
 
         pc1 = smooth(result{5}(:,1));
         pc2 = smooth(result{5}(:,2));
@@ -51,6 +59,11 @@ switch tag
         hold(plotStructs.(tag).axPCA, "off")
         plotStructs.(tag).hPCA = plot3(plotStructs.(tag).axPCA, pc1, pc2, pc3);
         hold(plotStructs.(tag).axPCA, "on")
+
+    case 'firing_rate'
+        set()
+
+
 
 
 end
