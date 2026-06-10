@@ -120,4 +120,9 @@ params.OP.filter.a = []; % ->[params.OP.b, params.OP.a] = butter(params.OP.n, [p
 params.OP.filter.zf = []; % final conditions of filter() output used as input for next pass (not sure this should be stored here)
 params.OP.filter.apply = false;
 
+% smoothing settings (for firing rates/pca)
+params.OP.smooth.sigma = params.OP.bin_size * 4; %default std of Gaussian, 4x of bin_size
+params.OP.smooth.mult = 4;
+params.OP.smooth.gk = spikes.generateGaussian(params.OP.bin_size, params.OP.smooth.sigma, params.OP.smooth.mult);
+params.OP.smooth.apply = true;
 end

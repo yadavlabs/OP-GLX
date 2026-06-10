@@ -84,9 +84,6 @@ classdef ParameterManager < dynamicprops
 
             %obj.OP.detection_params{loc+1} = value;
             
-
-            
-
         end
 
         function updateWindowLength(obj, value)
@@ -129,6 +126,7 @@ classdef ParameterManager < dynamicprops
                 obj.OP.bin_samples = round(obj.OP.bin_size * obj.NP.fs);
             end
             updateTimeArrays(obj);
+            updateGaussianKernel(obj);
 
         end
 
@@ -147,6 +145,26 @@ classdef ParameterManager < dynamicprops
             
 
 
+        end
+
+        function updateGaussianKernel(obj, opts)%, paramName, value)
+            arguments
+                obj acquisition.ParameterManager
+                opts.sigma = obj.OP.smooth.sigma
+                opts.mult = obj.OP.smooth.mult
+            end
+            % if ~isfield(obj.OP.smooth, paramName)
+            %     return;
+            % end
+            for fn = string(fieldnames(opts))'
+                obj.OP.smooth.(fn) = opts.(fn);
+            end
+            obj.OP.smooth.gk = spikes.generateGaussian(obj.OP.bin_size, opts.sigma, opts.mult);
+            %obj.OP.smooth.(paramName) = value;
+            
+
+
+            
         end
         function updateFilter(obj, opts)
             arguments
