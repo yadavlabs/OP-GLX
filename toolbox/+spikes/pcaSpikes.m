@@ -14,6 +14,9 @@ function result = pcaSpikes(data,params)
 [~,~,bin_idx] = histcounts((spike_times-params.OP.prestim_samples)/round(params.NP.fs), params.OP.bin_edges*10^-3);
 binned_spikes = accumarray([spike_chans, bin_idx], 1, [params.NP.num_chans, params.OP.max_bins], @sum, 0)'; 
 firing_rate = binned_spikes / params.OP.bin_size;
+if params.OP.smooth.apply
+    firing_rate = conv2(firing_rate, params.OP.smooth.gk, "same");
+end
 [coeff, score, ~, ~, explained] = pca(firing_rate);
 result = {data, spike_times, spike_chans, firing_rate, score, params, 'pcaSpikes'};
 end
