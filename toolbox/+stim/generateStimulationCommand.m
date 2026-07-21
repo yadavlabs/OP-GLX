@@ -1,20 +1,18 @@
-function [cmd_out, ampInfo] = generateStimulationCommand(params)
+function [cmd_out, ampInfo] = generateStimulationCommand(params, opts)
 %GENERATESTIMULATIONCOMMAND Summary of this function goes here
-%   Detailed explanation goes here
-% arguments (Input)
-%     inputArg1
-%     inputArg2
-% end
-% 
-% arguments (Output)
-%     outputArg1
-%     outputArg2
-% end
+%% Important: currently multipolar only, i.e. anode+cathode, anodes+cathode, anode+cathodes, anodes+cathodes
+arguments
+    params 
+    opts.fastSettle = false
+    opts.trigChan = []
+end
 
 %CC = 30e3; % clock cycle (Hz) 
 period = floor(stim.constants.CCHZ / params.frequency); %% has to be integer
 %durCC = round((params.duration * 10^-6)/ (1 / CC),1);
 durCC = round(params.duration / stim.constants.CCUSEC, 1);
+
+fast_settle = opts.fastSettle;
 
 cathodes = params.cathode(:)';
 anodes = params.anode(:)';
@@ -22,13 +20,18 @@ anodes = params.anode(:)';
 Nc = numel(cathodes);
 Na = numel(anodes);
 
+
 %%
 schedule = buildSchedule(params, Nc, Na);
 
 % [ampCathode, ampAnode] = stim.quantizeAmplitude(params.amplitude, Nc, Na, params.step);
 % 
 cmd_out = cell(1, numel(schedule));
-
+if isempty(opts.trigChan)
+    trig_adj = 0;
+else
+    trig_adj = 1;
+end
 for i = 1:numel(schedule)
 
     
@@ -42,7 +45,7 @@ for i = 1:numel(schedule)
     repeats = schedule(i).repeats;
     action = schedule(i).action;
 
-    cmdTemp = struct("elec", cell(1, aNc + aNa), "period", [], ...
+    cmdTemp = struct("elec", cell(1, aNc + aNa + trig_adj), "period", [], ...
         "repeats", [], "action", [], "seq", []);
 
     for n = 1:aNc
@@ -50,7 +53,7 @@ for i = 1:numel(schedule)
         cmdTemp(n).period = period;
         cmdTemp(n).repeats = repeats;
         cmdTemp(n).action = action;
-        cmdTemp(n).seq = buildBiphasicSequence(durCC, ampQuantC, 0, false);
+        cmdTemp(n).seq = buildBiphasicSequence(durCC, ampQuantC, 0, fast_settle);
     end
     
 
@@ -60,7 +63,15 @@ for i = 1:numel(schedule)
         cmdTemp(idx).period = period;
         cmdTemp(idx).repeats = repeats;
         cmdTemp(idx).action = action;
-        cmdTemp(idx).seq = buildBiphasicSequence(durCC, ampQuantA, 1, false);
+        cmdTemp(idx).seq = buildBiphasicSequence(durCC, ampQuantA, 1, fast_settle);
+    end
+
+    if trig_adj
+        cmdTemp(end).elec = opts.trigChan;
+        cmdTemp(end).period = period;
+        cmdTemp(end).repeats = repeats;
+        cmdTemp(end).action = action;
+        cmdTemp(end).seq = inactive_cathode_sequence(durCC);
     end
     cmd_out{i} = cmdTemp;
     
@@ -152,6 +163,12 @@ function seq = buildBiphasicSequence(pw, amp, leading_pol, fast_settle)
     end
 
 
+end
+
+function in_seq = inactive_cathode_sequence(len)
+len = 2*len + 2;
+in_seq(1) = struct('length', len, 'ampl', 0, 'pol', 0, ...
+    'fs', 0, 'enable', 0, 'delay', 0, 'ampSelect', 1);
 end
 
 % cmd(i).seq(4) = struct('length', fs_cycls, 'ampl', 0, 'pol', 1, ...
