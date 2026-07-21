@@ -67,7 +67,7 @@ classdef ArduinoStimulator < stim.StimulationInterface
             if isfield(opts, "stimulationParameters")
                 obj.stimulationParameters = opts.stimulationParameters;
             else
-                obj.stimulationParameters = struct("vibration_level", 10, "vibration_length", 1000);
+                obj.stimulationParameters = struct("vibration_level", 100, "vibration_length", 1000);
             end
             
             try
@@ -164,6 +164,9 @@ classdef ArduinoStimulator < stim.StimulationInterface
                 
                 % case "ParameterUpdated"
                 %     obj.StatusMessage = sprintf('%s set to %s', data(2), data(3));
+                case "Vibration stopped"
+                    notify(obj, "StimulusDelivered")
+                    obj.StatusMessage = "Stimulation complete.";
 
                 otherwise
 

@@ -1,5 +1,5 @@
 function [spike_times, spike_chans, threshold_estimate] = detectSpikes(data, opts)
-%DETECTSPIKESMINALIGNED Detect threshold-crossing spikes and align times to local minima.
+%DETECTSPIKES Detect threshold-crossing spikes and align times to local minima.
 %
 %   Returns spike times aligned to the most-negative sample within a short
 %   forward window after each stay-below threshold crossing. 
@@ -119,7 +119,7 @@ if isempty(rows)
 end
  
 % --- Per-channel forward-window minimum (Option A) ---
-% For each channel with detections, gather a small (r_c x W) slab from
+% For each channel with detections, gather a small (r_c x W) chunk from
 % data(:,c) and take the row-wise min. Working set stays cache-friendly.
 spike_times = zeros(numel(rows), 1);
 unique_chans = unique(chans);

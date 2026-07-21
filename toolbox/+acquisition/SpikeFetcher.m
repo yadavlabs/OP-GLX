@@ -362,7 +362,7 @@ classdef SpikeFetcher < handle
 
         function fetchChunk(obj, ~, ~)
             %%
-            if ~obj.isAcquiring || ~IsRunning(obj.hSGL)
+            if ~obj.isAcquiring %%|| ~IsRunning(obj.hSGL)
                 return;
             end
             if ~IsRunning(obj.hSGL)
